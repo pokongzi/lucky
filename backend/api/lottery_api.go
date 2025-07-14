@@ -1,7 +1,7 @@
 package api
 
 import (
-	"lucky/backend/service"
+	"lucky/service"
 	"net/http"
 
 	"github.com/gin-gonic/gin"

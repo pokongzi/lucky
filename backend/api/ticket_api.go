@@ -1,8 +1,8 @@
 package api
 
 import (
-	"lucky/backend/common/mysql"
-	"lucky/backend/service"
+	"lucky/common/mysql"
+	"lucky/service"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -40,8 +40,8 @@ func SaveTicketHandler(c *gin.Context) {
 }
 
 func ListTicketHandler(c *gin.Context) {
-	userID, _ := c.GetQuery("user_id")
-	typeStr, _ := c.GetQuery("type")
+	// userID, _ := c.GetQuery("user_id")
+	// typeStr, _ := c.GetQuery("type")
 	// 省略参数校验和转换
 	// ...
 	c.JSON(http.StatusOK, gin.H{"tickets": []interface{}{}}) // TODO: 实现查询逻辑

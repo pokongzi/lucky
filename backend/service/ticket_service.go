@@ -1,7 +1,7 @@
 package service
 
 import (
-	"lucky/backend/model"
+	"lucky/model"
 
 	"gorm.io/gorm"
 )

@@ -1,8 +1,8 @@
 package api
 
 import (
-	"lucky/backend/common/mysql"
-	"lucky/backend/service"
+	"lucky/common/mysql"
+	"lucky/service"
 	"net/http"
 
 	"github.com/gin-gonic/gin"

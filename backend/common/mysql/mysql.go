@@ -2,7 +2,7 @@ package mysql
 
 import (
 	"fmt"
-	"shmily/common/config"
+	"lucky/common/config"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"

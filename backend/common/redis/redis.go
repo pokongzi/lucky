@@ -3,8 +3,8 @@ package redis
 import (
 	"encoding/json"
 	"fmt"
-	"shmily/common/config"
-	"shmily/common/log"
+	"lucky/common/config"
+	"lucky/common/log"
 	"time"
 
 	"github.com/go-redis/redis"
