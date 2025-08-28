@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>彩票号码生成器</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/components.css">
+</head>
+<body>
+    <div id="app">
+        <!-- 顶部导航栏 -->
+        <header class="header">
+            <nav class="nav-container">
+                <div class="nav-center">
+                    <div class="game-switcher">
+                        <button class="game-btn active" data-game="ssq">双色球</button>
+                        <button class="game-btn" data-game="dlt">大乐透</button>
+                    </div>
+                </div>
+            </nav>
+        </header>
+
+        <!-- 主要内容区域 -->
+        <main class="main-content">
+            <!-- 页面容器 -->
+            <div id="home-page" class="page active">
+                <!-- 首页内容将通过JS动态加载 -->
+            </div>
+            
+            <div id="history-page" class="page">
+                <!-- 历史开奖页面内容将通过JS动态加载 -->
+            </div>
+            
+            <div id="mynumbers-page" class="page">
+                <!-- 我的号码页面内容将通过JS动态加载 -->
+            </div>
+        </main>
+
+        <!-- 底部导航 -->
+        <nav class="bottom-nav">
+            <button class="nav-item active" data-page="home">
+                <span class="nav-icon">🎲</span>
+                <span class="nav-text">生成号码</span>
+            </button>
+            <button class="nav-item" data-page="history">
+                <span class="nav-icon">📊</span>
+                <span class="nav-text">历史开奖</span>
+            </button>
+            <button class="nav-item" data-page="mynumbers">
+                <span class="nav-icon">⭐</span>
+                <span class="nav-text">我的号码</span>
+            </button>
+        </nav>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script src="js/components/home.js"></script>
+    <script src="js/components/history.js"></script>
+    <script src="js/components/mynumbers.js"></script>
+</body>
+</html> 

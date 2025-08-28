@@ -6,6 +6,7 @@ require (
 	github.com/bwmarrin/snowflake v0.3.0
 	github.com/gin-gonic/gin v1.10.1
 	github.com/go-redis/redis v6.15.9+incompatible
+	github.com/PuerkitoBio/goquery v1.8.1
 	github.com/sirupsen/logrus v1.9.3
 	gopkg.in/ini.v1 v1.67.0
 	gorm.io/driver/mysql v1.6.0

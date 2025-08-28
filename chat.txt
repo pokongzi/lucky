@@ -1,0 +1,309 @@
+下面给你梳理一个「双色球 / 超级大乐透」随机选号小程序的典型功能、页面结构和对应逻辑。你可以先做 MVP（快速上线），后续再加进阶功能。
+
+一、玩法规则建模（基础）
+- 双色球
+  - 红球：6 个，范围 01-33，不重复
+  - 蓝球：1 个，范围 01-16
+- 超级大乐透
+  - 前区：5 个，范围 01-35，不重复
+  - 后区：2 个，范围 01-12，不重复
+
+建议抽象成 GameConfig，避免写死逻辑，便于扩展更多玩法。
+
+二、功能清单
+MVP（建议首发）
+- 一键随机生成：支持生成 N 注
+- 玩法切换：双色球 / 大乐透
+- 基本定制：可设置数量、是否排序、格式化（两位数）
+- 胆码/锁定与排除：先选一些数字“锁定”，随机只补全剩余；支持排除号
+- 结果展示与复制：支持保存记录、复制文本/导出图片海报
+- 生成记录：本地保存最近生成的号码
+- 开奖提醒与时间展示（仅展示信息，不推送）
+
+进阶（第二期）
+- 高级过滤：奇偶比、和值范围、连号数、重号数（跟最近 n 期）、跨度、尾数分布
+- 权重策略：按冷热号、遗漏值加权随机
+- 摇一摇生成、洗牌（保留锁定号，其余重随机）
+- 历史开奖与趋势：走势图、分布统计、遗漏/热度
+- 种子与可复现：输入/保存随机种子保证结果可复现
+- 多玩法扩展：任选、福彩 3D 等
+- 分享与协作：生成结果分享好友，好友可一键导入
+
+三、页面信息架构（两套方案）
+方案 A：MVP 四页
+1) 首页（快速生成）
+2) 定制生成页（高级条件）
+3) 生成结果/记录页
+4) 历史开奖与趋势页
+
+方案 B：进阶六页
+1) 首页/玩法选择与快速生成
+2) 定制生成（含锁定/排除/过滤）
+3) 生成结果（支持保存/分享/导出）
+4) 历史开奖（列表）
+5) 趋势分析（图表/统计）
+6) 我的（收藏、设置、关于）
+
+四、页面→核心逻辑说明
+1) 首页/快速生成
+- 交互
+  - 玩法选择（tab：双色球/大乐透）
+  - 生成注数（Stepper：1-20 注）
+  - 一键生成；摇一摇生成（可选）
+  - 快捷入口：进入“定制生成”
+- 逻辑
+  - 根据当前玩法 GameConfig 调用 generator
+  - 结果临时展示，可一键“保存到记录”
+  - 错误处理：若参数非法（如排除过多）弹提示
+
+2) 定制生成页
+- 交互
+  - 球盘组件：数字网格可点选“锁定/排除”，支持清空
+  - 过滤器面板：奇偶比、和值范围、连号数、跨度、与最近 n 期重合数
+  - 权重策略：热号加权、冷号加权、均匀
+  - 生成注数、是否排序、最大尝试次数
+  - 洗牌按钮：保留锁定重新生成其余
+- 逻辑
+  - 校验：锁定数量不能超过位数；锁定与排除不冲突；过滤可达（有解）
+  - 生成流程：先放入锁定号→在剩余号码池中随机补全→校验过滤→不通过则重试（上限）
+  - 加权随机：根据频次/遗漏计算权重分布，再抽样
+  - 性能保护：上限重试次数、超时提示用户放宽条件
+
+3) 结果页（或记录页）
+- 交互
+  - 展示本次生成的多注号码；支持“复制文本”“保存记录”“导出海报”
+  - “锁定某注”并“洗牌其他注”
+  - 批量操作：全选/删除/收藏
+  - 排序与展示格式：两位数、颜色区分（红/蓝、前/后）
+- 逻辑
+  - 本地持久化：wx.setStorage（或云端）
+  - 导出图片：canvas 合成号码卡片
+  - 分享：生成分享链接/参数（小程序码）
+
+4) 历史开奖与趋势页
+- 交互
+  - 开奖列表（期号、号码、日期）
+  - 快速筛选：最近 30/50/100 期
+  - 统计图表：号码出现频次、遗漏值、热冷号、奇偶/和值分布
+- 逻辑
+  - 数据源：调用第三方开奖 API 或自建服务，做缓存
+  - 统计计算：在本地或云函数中处理，避免阻塞 UI
+  - 断网降级：使用本地缓存，展示“数据非最新”提示
+
+5) 我的/设置/关于
+- 交互
+  - 收藏/保存记录管理
+  - 默认玩法、默认注数、默认过滤策略
+  - 声明与隐私：仅娱乐用途，号码随机无预测含义
+- 逻辑
+  - 配置持久化；版本更新与变更说明
+
+五、数据模型建议
+- GameConfig
+  - id: 'ssq' | 'dlt'
+  - pools: [{key:'red'|'blue'|'front'|'back', count:number, range:[min,max], color:string}]
+- GeneratorOptions
+  - gameId
+  - lines: 1..N
+  - locked: {poolKey: number[]}
+  - excluded: {poolKey: number[]}
+  - filters: {oddEven?:[min,max], sumRange?:[min,max], maxConsecutive?:number, maxRepeatVsHistory?:number, spanRange?:[min,max], ...}
+  - weighting: 'none'|'hot'|'cold'|customWeights
+  - sortNumbers: boolean
+  - seed?: string | number
+  - maxAttemptsPerLine?: number
+- Ticket
+  - id, gameId, numbers: {poolKey:number[]}, createdAt, tags?:string[]
+- HistoryDraw
+  - issue, date, numbers, meta
+
+六、核心生成算法（伪代码/JS）
+玩法配置
+const GAME_CONFIGS = {
+  ssq: {
+    pools: [
+      { key: 'red', count: 6, range: [1, 33] },
+      { key: 'blue', count: 1, range: [1, 16] }
+    ]
+  },
+  dlt: {
+    pools: [
+      { key: 'front', count: 5, range: [1, 35] },
+      { key: 'back', count: 2, range: [1, 12] }
+    ]
+  }
+};
+
+工具函数
+function pad2(n) { return n.toString().padStart(2, '0'); }
+
+function rng(seed) {
+  // 若需要可复现，用线性同余
+  let s = (typeof seed === 'number' ? seed : Date.now()) % 2147483647;
+  return () => (s = s * 48271 % 2147483647) / 2147483647;
+}
+
+function pickUnique({min, max, need, excluded=new Set(), locked=new Set(), random= Math.random, weights}) {
+  // 构造候选池
+  const pool = [];
+  for (let i=min; i<=max; i++) {
+    if (excluded.has(i)) continue;
+    if (locked.has(i)) continue; // locked 先放入，避免重复
+    pool.push(i);
+  }
+  if (locked.size > need) throw new Error('锁定数量超过该区位需求');
+  if (pool.length + locked.size < need) throw new Error('可选数量不足，请放宽条件');
+
+  // 抽样（支持权重）
+  const chosen = new Set(locked);
+  const sampleCount = need - locked.size;
+  for (let k=0; k<sampleCount; k++) {
+    if (pool.length === 0) throw new Error('可选数量不足');
+    let idx;
+    if (weights && weights.length === pool.length) {
+      // 按权重抽样
+      const total = weights.reduce((a,b)=>a+b,0);
+      let r = random()*total;
+      for (let i=0;i<pool.length;i++){
+        if ((r -= weights[i]) <= 0) { idx = i; break; }
+      }
+      if (idx === undefined) idx = pool.length-1;
+    } else {
+      idx = Math.floor(random()*pool.length);
+    }
+    const val = pool[idx];
+    chosen.add(val);
+    // 移除已选
+    pool.splice(idx,1);
+    if (weights) weights.splice(idx,1);
+  }
+  return Array.from(chosen).sort((a,b)=>a-b);
+}
+
+主生成
+function generateLines({ gameId, lines=5, options }) {
+  const cfg = GAME_CONFIGS[gameId];
+  if (!cfg) throw new Error('未知玩法');
+  const rand = options?.seed ? rng(options.seed) : Math.random;
+  const results = [];
+
+  for (let ln=0; ln<lines; ln++) {
+    let attempts = 0;
+    const maxAttempts = options?.maxAttemptsPerLine ?? 200;
+    while (attempts++ < maxAttempts) {
+      const ticket = {};
+      let ok = true;
+
+      for (const p of cfg.pools) {
+        const locked = new Set(options?.locked?.[p.key] || []);
+        const excluded = new Set(options?.excluded?.[p.key] || []);
+
+        // 可选：根据历史统计生成 weights
+        const weights = null; // 或者按热号/冷号生成对应长度数组
+
+        const arr = pickUnique({
+          min: p.range[0],
+          max: p.range[1],
+          need: p.count,
+          excluded, locked,
+          random: rand,
+          weights
+        });
+
+        ticket[p.key] = options?.sortNumbers === false ? arr /*可保持原序*/ : arr.sort((a,b)=>a-b);
+      }
+
+      if (passFilters(ticket, options?.filters, gameId)) {
+        results.push(ticket);
+        break;
+      }
+
+      if (attempts >= maxAttempts) throw new Error('过滤条件过严，未能生成，请放宽条件');
+    }
+  }
+  return results;
+}
+
+过滤举例
+function passFilters(ticket, filters, gameId) {
+  if (!filters) return true;
+
+  const nums = Object.values(ticket).flat();
+
+  // 奇偶比
+  if (filters.oddEven) {
+    const odds = nums.filter(n=>n%2===1).length;
+    const evens = nums.length - odds;
+    const [minOdd, maxOdd] = filters.oddEven;
+    if (odds < minOdd || odds > maxOdd) return false;
+  }
+
+  // 和值
+  if (filters.sumRange) {
+    const s = nums.reduce((a,b)=>a+b,0);
+    const [minS, maxS] = filters.sumRange;
+    if (s < minS || s > maxS) return false;
+  }
+
+  // 连号数
+  if (typeof filters.maxConsecutive === 'number') {
+    const sorted = nums.slice().sort((a,b)=>a-b);
+    let maxRun = 1, run = 1;
+    for (let i=1;i<sorted.length;i++){
+      run = (sorted[i] === sorted[i-1]+1) ? run+1 : 1;
+      maxRun = Math.max(maxRun, run);
+    }
+    if (maxRun > filters.maxConsecutive) return false;
+  }
+
+  // 与历史重合控制（需要传入最近 n 期号码集合）
+  // if (filters.maxRepeatVsHistory && filters.historySet) { ... }
+
+  return true;
+}
+
+格式化展示
+function formatTicket(ticket, gameId) {
+  if (gameId === 'ssq') {
+    const red = ticket.red.map(pad2).join(' ');
+    const blue = ticket.blue.map(pad2).join(' ');
+    return `红: ${red}  蓝: ${blue}`;
+  } else {
+    const front = ticket.front.map(pad2).join(' ');
+    const back = ticket.back.map(pad2).join(' ');
+    return `前: ${front}  后: ${back}`;
+  }
+}
+
+七、关键交互与组件建议
+- 球盘组件：支持三态（未选/锁定/排除），长按切换状态，顶部显示已选统计
+- 洗牌按钮：仅重随机未锁定的位
+- 摇一摇：监听 devicemotion，阈值去抖
+- 海报导出：canvas 绘制号码球、期号、时间、水印
+- 错误与边界
+  - 锁定数超过需求：立即提示
+  - 排除导致无解：提示并可一键“清空排除”
+  - 过滤导致反复失败：给出建议“放宽到奇偶 2-4、提高最大尝试次数到 500”
+
+八、历史数据与趋势
+- 来源
+  - 官方或第三方开奖数据 API（注意合规与稳定性）
+  - 做服务端代理与缓存，避免小程序直连第三方跨域/限频
+- 统计
+  - 频次、遗漏、热冷号、和值分布、尾数分布、跨度、重号率
+  - 计算放在云函数/后端，前端仅渲染结果
+
+九、存储与同步
+- 本地：wx.setStorage 保存用户配置、最近生成记录（如最多 200 条）
+- 云端（可选）：用户登录后同步收藏、生成历史与自定义权重
+- 隐私与声明：仅娱乐用途，不提供任何中奖承诺或预测能力
+
+十、测试清单（要点）
+- 玩法切换配置正确性（范围、个数、颜色）
+- 锁定/排除组合边界
+- 过滤可达性与性能（在 200 次尝试内成功）
+- 导出海报的适配（不同机型分辨率）
+- 断网时历史/趋势页回退策略
+- 多注生成的去重（是否允许重复注可配置）
+
+如果你是做微信小程序，我可以帮你把以上逻辑落成页面结构（WXML/WXSS/JS），包括球盘组件与生成服务。你打算做微信小程序还是 H5/Flutter？是否需要我给出首页与定制页的模板代码？另外，你是否需要接入某个具体的开奖数据源（我可以给出接口封装示例）。
