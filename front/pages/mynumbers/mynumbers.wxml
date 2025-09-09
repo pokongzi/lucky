@@ -1,0 +1,21 @@
+﻿<view class="container">
+  <view class="header">
+    <text class="title">我的号码</text>
+  </view>
+  
+  <view class="my-numbers-list">
+    <view class="number-item" wx:for="{{myNumbers}}" wx:key="id">
+      <view class="numbers">
+        <text class="number red" wx:for="{{item.redNumbers}}" wx:key="*this">{{item}}</text>
+        <text class="number blue">{{item.blueNumber}}</text>
+      </view>
+      <view class="actions">
+        <button class="action-btn" size="mini" bindtap="deleteNumber" data-id="{{item.id}}">删除</button>
+      </view>
+    </view>
+  </view>
+  
+  <view class="empty" wx:if="{{myNumbers.length === 0}}">
+    <text>暂无保存的号码</text>
+  </view>
+</view>

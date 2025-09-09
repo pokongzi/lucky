@@ -1,0 +1,26 @@
+﻿<view class="container">
+  <view class="header">
+    <text class="title">彩票号码生成器</text>
+  </view>
+  
+  <view class="game-switcher">
+    <button class="game-btn active" data-game="ssq">双色球</button>
+    <button class="game-btn" data-game="dlt">大乐透</button>
+  </view>
+  
+  <view class="number-display">
+    <view class="number-group">
+      <text class="number red">01</text>
+      <text class="number red">02</text>
+      <text class="number red">03</text>
+      <text class="number red">04</text>
+      <text class="number red">05</text>
+      <text class="number red">06</text>
+    </view>
+    <view class="number-group">
+      <text class="number blue">07</text>
+    </view>
+  </view>
+  
+  <button class="generate-btn">生成新号码</button>
+</view>

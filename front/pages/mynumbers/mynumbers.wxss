@@ -1,0 +1,75 @@
+﻿.container {
+  padding: 20rpx;
+  background-color: #f5f5f5;
+  min-height: 100vh;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 40rpx;
+}
+
+.title {
+  font-size: 36rpx;
+  font-weight: bold;
+  color: #333;
+}
+
+.my-numbers-list {
+  background-color: #fff;
+  border-radius: 20rpx;
+  overflow: hidden;
+}
+
+.number-item {
+  padding: 30rpx;
+  border-bottom: 1rpx solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.numbers {
+  display: flex;
+  align-items: center;
+}
+
+.number {
+  display: inline-block;
+  width: 50rpx;
+  height: 50rpx;
+  line-height: 50rpx;
+  text-align: center;
+  border-radius: 50%;
+  margin-right: 10rpx;
+  font-size: 22rpx;
+  font-weight: bold;
+  color: #fff;
+}
+
+.number.red {
+  background-color: #ff4757;
+}
+
+.number.blue {
+  background-color: #3742fa;
+}
+
+.actions {
+  display: flex;
+  gap: 20rpx;
+}
+
+.action-btn {
+  background-color: #ff4757;
+  color: #fff;
+  border: none;
+  border-radius: 10rpx;
+}
+
+.empty {
+  text-align: center;
+  padding: 100rpx 0;
+  color: #999;
+  font-size: 28rpx;
+}

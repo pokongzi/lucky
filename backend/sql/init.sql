@@ -1,11 +1,11 @@
--- 彩票号码生成器数据库初始化脚本
+﻿-- 彩票号码生成器数据库初始化脚本
 -- MySQL 8.0+
 
 -- 创建数据库
 CREATE DATABASE IF NOT EXISTS lottery_db DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE lottery_db;
 
--- 1. 用户表 (更新支持JWT)
+-- 1. 用户表(更新支持JWT)
 CREATE TABLE `users` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '用户ID',
   `open_id` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '微信OpenID',
@@ -78,7 +78,7 @@ CREATE TABLE `lottery_games` (
   KEY `idx_lottery_games_is_active` (`is_active`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='彩票游戏表';
 
--- 3. 用户号码表
+-- 5. 用户号码表
 CREATE TABLE `user_numbers` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '用户号码ID',
   `user_id` bigint unsigned NOT NULL COMMENT '用户ID',
@@ -100,7 +100,7 @@ CREATE TABLE `user_numbers` (
   CONSTRAINT `fk_user_numbers_game` FOREIGN KEY (`game_id`) REFERENCES `lottery_games` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户号码表';
 
--- 4. 开奖结果表
+-- 6. 开奖结果表
 CREATE TABLE `draw_results` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '开奖ID',
   `game_id` bigint unsigned NOT NULL COMMENT '游戏ID',
@@ -114,14 +114,6 @@ CREATE TABLE `draw_results` (
   `first_amount` bigint NOT NULL DEFAULT '0' COMMENT '一等奖单注奖金(分)',
   `second_prize` int NOT NULL DEFAULT '0' COMMENT '二等奖注数',
   `second_amount` bigint NOT NULL DEFAULT '0' COMMENT '二等奖单注奖金(分)',
-  `third_prize` int NOT NULL DEFAULT '0' COMMENT '三等奖注数',
-  `third_amount` bigint NOT NULL DEFAULT '0' COMMENT '三等奖单注奖金(分)',
-  `fourth_prize` int NOT NULL DEFAULT '0' COMMENT '四等奖注数',
-  `fourth_amount` bigint NOT NULL DEFAULT '0' COMMENT '四等奖单注奖金(分)',
-  `fifth_prize` int NOT NULL DEFAULT '0' COMMENT '五等奖注数',
-  `fifth_amount` bigint NOT NULL DEFAULT '0' COMMENT '五等奖单注奖金(分)',
-  `sixth_prize` int NOT NULL DEFAULT '0' COMMENT '六等奖注数',
-  `sixth_amount` bigint NOT NULL DEFAULT '0' COMMENT '六等奖单注奖金(分)',
   `created_at` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
   `updated_at` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
   PRIMARY KEY (`id`),
@@ -158,4 +150,4 @@ INNER JOIN lottery_games lg ON un.game_id = lg.id;
 
 -- 创建索引优化查询性能
 CREATE INDEX idx_draw_results_composite ON draw_results(game_id, period DESC, draw_date DESC);
-CREATE INDEX idx_user_numbers_composite ON user_numbers(user_id, game_id, is_active, created_at DESC); 
+CREATE INDEX idx_user_numbers_composite ON user_numbers(user_id, game_id, is_active, created_at DESC);

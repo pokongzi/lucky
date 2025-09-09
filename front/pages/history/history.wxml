@@ -1,0 +1,16 @@
+﻿<view class="container">
+  <view class="header">
+    <text class="title">历史开奖</text>
+  </view>
+  
+  <view class="history-list">
+    <view class="history-item" wx:for="{{historyList}}" wx:key="id">
+      <view class="period">{{item.period}}</view>
+      <view class="numbers">
+        <text class="number red" wx:for="{{item.redNumbers}}" wx:key="*this">{{item}}</text>
+        <text class="number blue">{{item.blueNumber}}</text>
+      </view>
+      <view class="date">{{item.date}}</view>
+    </view>
+  </view>
+</view>
