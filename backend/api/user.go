@@ -37,7 +37,7 @@ func UserLogin(c *gin.Context) {
 		return
 	}
 
-	// 获取或创建用户
+	// 获取或创建用�?
 	user, err := service.GetOrCreateUser(mysql.DB, req.OpenID, req.Nickname, req.AvatarURL)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -50,7 +50,7 @@ func UserLogin(c *gin.Context) {
 
 	// TODO: 生成JWT token
 	response := UserLoginResponse{
-		UserID:    user.ID,
+		UserID:    uint64(user.ID),
 		OpenID:    user.OpenID,
 		Nickname:  user.Nickname,
 		AvatarURL: user.AvatarURL,
@@ -66,11 +66,11 @@ func UserLogin(c *gin.Context) {
 // UserInfo 获取用户信息
 func UserInfo(c *gin.Context) {
 	// TODO: 从token中获取用户ID
-	userID := c.GetHeader("X-User-ID") // 临时使用header传递
+	userID := c.GetHeader("X-User-ID") // 临时使用header传�?
 	if userID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"code":    401,
-			"message": "未授权",
+			"message": "未授�?,
 		})
 		return
 	}
@@ -79,13 +79,13 @@ func UserInfo(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"code":    404,
-			"message": "用户不存在",
+			"message": "用户不存�?,
 		})
 		return
 	}
 
 	response := UserLoginResponse{
-		UserID:    user.ID,
+		UserID:    uint64(user.ID),
 		OpenID:    user.OpenID,
 		Nickname:  user.Nickname,
 		AvatarURL: user.AvatarURL,
