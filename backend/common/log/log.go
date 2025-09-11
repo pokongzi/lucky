@@ -1,9 +1,13 @@
-package log
+﻿package log
 
 import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
+
+	"lucky/common/config"
 
 	"github.com/sirupsen/logrus"
 )
@@ -12,9 +16,71 @@ var logger *logrus.Logger
 
 func init() {
 	logger = logrus.New()
-	SetLevel(logrus.DebugLevel)
-	SetOutput("./log/shmily.log", false)
+	initFromConfig()
+}
 
+// initFromConfig 从配置文件初始化日志设置
+func initFromConfig() {
+	// 读取日志配置
+	logSection := config.Config.Section("log")
+
+	// 设置日志等级
+	levelStr := logSection.Key("level").String()
+	level := parseLogLevel(levelStr)
+	SetLevel(level)
+
+	// 设置日志文件路径
+	logFile := logSection.Key("file").String()
+	if logFile == "" {
+		logFile = "./log/lucky.log" // 默认路径
+	}
+
+	// 确保日志目录存在
+	logDir := filepath.Dir(logFile)
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		fmt.Printf("Failed to create log directory: %v\n", err)
+	}
+
+	// 设置控制台输出
+	withConsoleStr := logSection.Key("with_console").String()
+	withConsole := strings.ToLower(withConsoleStr) == "true"
+
+	SetOutput(logFile, withConsole)
+
+	// 设置日志格式
+	SetFormatter()
+}
+
+// parseLogLevel 解析日志等级字符串
+func parseLogLevel(levelStr string) logrus.Level {
+	switch strings.ToLower(levelStr) {
+	case "trace":
+		return logrus.TraceLevel
+	case "debug":
+		return logrus.DebugLevel
+	case "info":
+		return logrus.InfoLevel
+	case "warn", "warning":
+		return logrus.WarnLevel
+	case "error":
+		return logrus.ErrorLevel
+	case "fatal":
+		return logrus.FatalLevel
+	case "panic":
+		return logrus.PanicLevel
+	default:
+		return logrus.DebugLevel // 默认debug级别
+	}
+}
+
+// SetFormatter 设置日志格式
+func SetFormatter() {
+	formatter := &logrus.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: "2006-01-02 15:04:05",
+		DisableColors:   false,
+	}
+	logger.SetFormatter(formatter)
 }
 
 func SetLevel(level logrus.Level) {
@@ -104,9 +170,11 @@ func Warning(args ...interface{}) {
 func Error(args ...interface{}) {
 	logger.Error(args...)
 }
+
 func Fatal(args ...interface{}) {
 	logger.Fatal(args...)
 }
+
 func Panic(args ...interface{}) {
 	logger.Panic(args...)
 }

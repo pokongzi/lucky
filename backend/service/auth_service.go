@@ -15,9 +15,9 @@ import (
 )
 
 var (
-	ErrUserNotFound = errors.New("用户不存在")
+	ErrUserNotFound = errors.New("用户不存�?)
 	ErrUserDisabled = errors.New("用户已被禁用")
-	ErrTokenExpired = errors.New("token已过期")
+	ErrTokenExpired = errors.New("token已过�?)
 	ErrTokenRevoked = errors.New("token已被撤销")
 	ErrInvalidToken = errors.New("无效的token")
 )
@@ -42,7 +42,7 @@ func NewAuthService(db *gorm.DB) *AuthService {
 
 // Login 用户登录（微信登录）
 func (s *AuthService) Login(openID, nickname, avatarURL, clientIP, userAgent string) (*LoginResult, error) {
-	// 获取或创建用户
+	// 获取或创建用�?
 	user, err := GetOrCreateUser(s.db, openID, nickname, avatarURL)
 	if err != nil {
 		// 记录登录失败日志
@@ -50,7 +50,7 @@ func (s *AuthService) Login(openID, nickname, avatarURL, clientIP, userAgent str
 		return nil, err
 	}
 
-	// 检查用户状态
+	// 检查用户状�?
 	if user.Status != 1 {
 		s.logLogin(user.ID, "wechat", clientIP, userAgent, 0, "用户已被禁用")
 		return nil, ErrUserDisabled
@@ -97,11 +97,11 @@ func (s *AuthService) RefreshAccessToken(refreshToken, clientIP, userAgent strin
 	if time.Now().After(tokenRecord.ExpiresAt) {
 		// 撤销过期token
 		s.db.Model(&tokenRecord).Update("is_revoked", true)
-		s.logLogin(tokenRecord.UserID, "refresh", clientIP, userAgent, 0, "刷新token已过期")
+		s.logLogin(tokenRecord.UserID, "refresh", clientIP, userAgent, 0, "刷新token已过�?)
 		return nil, ErrTokenExpired
 	}
 
-	// 检查用户状态
+	// 检查用户状�?
 	if tokenRecord.User.Status != 1 {
 		s.logLogin(tokenRecord.UserID, "refresh", clientIP, userAgent, 0, "用户已被禁用")
 		return nil, ErrUserDisabled
@@ -143,7 +143,7 @@ func (s *AuthService) ValidateAccessToken(accessToken string) (*model.User, erro
 		return nil, err
 	}
 
-	// 检查用户状态
+	// 检查用户状�?
 	if user.Status != 1 {
 		return nil, ErrUserDisabled
 	}
@@ -194,7 +194,7 @@ func (s *AuthService) generateTokens(user *model.User, clientIP, userAgent strin
 	tokenRecord := model.RefreshToken{
 		UserID:    user.ID,
 		Token:     refreshToken,
-		ExpiresAt: time.Now().Add(jwt.RefreshTokenExpireDuration),
+		ExpiresAt: time.Now().Add(jwt.GetRefreshTokenExpire()),
 		UserAgent: userAgent,
 		ClientIP:  clientIP,
 	}
@@ -207,7 +207,7 @@ func (s *AuthService) generateTokens(user *model.User, clientIP, userAgent strin
 	return &LoginResult{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
-		ExpiresAt:    time.Now().Add(jwt.TokenExpireDuration),
+		ExpiresAt:    time.Now().Add(jwt.GetAccessTokenExpire()),
 		User:         user,
 	}, nil
 }
@@ -226,7 +226,7 @@ func (s *AuthService) generateRefreshToken() (string, error) {
 func (s *AuthService) logLogin(userID uint64, loginType, clientIP, userAgent string, status int, errorMsg string) {
 	// 处理IPv6地址
 	if ip := net.ParseIP(clientIP); ip != nil && ip.To4() == nil {
-		// IPv6地址，截取前45个字符
+		// IPv6地址，截取前45个字�?
 		if len(clientIP) > 45 {
 			clientIP = clientIP[:45]
 		}
@@ -261,8 +261,8 @@ func (s *AuthService) logLogin(userID uint64, loginType, clientIP, userAgent str
 // GetClientIP 获取客户端真实IP
 func GetClientIP(request interface{}) string {
 	// 这里需要根据具体的请求对象实现
-	// 通常从 X-Forwarded-For, X-Real-IP 等 header 获取
-	return "127.0.0.1" // 默认值
+	// 通常�?X-Forwarded-For, X-Real-IP �?header 获取
+	return "127.0.0.1" // 默认�?
 }
 
 // ExtractBearerToken 从Authorization header提取Bearer token

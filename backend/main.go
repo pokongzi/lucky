@@ -44,6 +44,10 @@ func main() {
 	api.RegisterResultRoutes(r)
 	api.RegisterCrawlerRoutes(r)
 
+	// 定时抓取开奖数据
+	crawler := service.NewCrawlerService()
+	go crawler.ScheduleCrawl()
+
 	log.Println("服务启动在端口 :8080")
 	if err := r.Run(":8080"); err != nil {
 		log.Fatal("服务启动失败: ", err)
