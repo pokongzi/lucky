@@ -12,13 +12,13 @@ import (
 	"gorm.io/gorm"
 )
 
-// RandomNumberResult ���������
+// RandomNumberResult 随机号码结果
 type RandomNumberResult struct {
 	RedBalls  model.NumberArray `json:"red_balls"`
 	BlueBalls model.NumberArray `json:"blue_balls"`
 }
 
-// GenerateRandomNumbers �����������
+// GenerateRandomNumbers 生成随机号码
 func GenerateRandomNumbers(game *model.LotteryGame, count int) ([]RandomNumberResult, error) {
 	results := make([]RandomNumberResult, count)
 
@@ -35,7 +35,7 @@ func GenerateRandomNumbers(game *model.LotteryGame, count int) ([]RandomNumberRe
 	return results, nil
 }
 
-// generateRandomBalls ����������
+// generateRandomBalls 生成随机球号
 func generateRandomBalls(min, max, count int) model.NumberArray {
 	rand.Seed(time.Now().UnixNano() + int64(rand.Intn(1000)))
 
@@ -54,38 +54,38 @@ func generateRandomBalls(min, max, count int) model.NumberArray {
 	return model.NumberArray(balls)
 }
 
-// ValidateNumbers ��֤����
+// ValidateNumbers 验证号码
 func ValidateNumbers(game *model.LotteryGame, redBalls, blueBalls model.NumberArray) error {
-	// ��֤��������
+	// 验证红球数量
 	if len(redBalls) != game.RedCount {
-		return errors.New(fmt.Sprintf("��������������Ҫ%d��", game.RedCount))
+		return errors.New(fmt.Sprintf("红球数量不正确，需要%d个", game.RedCount))
 	}
 
-	// ��֤��������
+	// 验证蓝球数量
 	if len(blueBalls) != game.BlueCount {
-		return errors.New(fmt.Sprintf("��������������Ҫ%d��", game.BlueCount))
+		return errors.New(fmt.Sprintf("蓝球数量不正确，需要%d个", game.BlueCount))
 	}
 
-	// ��֤����Χ��Ψһ��
+	// 验证红球范围和唯一性
 	usedRed := make(map[int]bool)
 	for _, ball := range redBalls {
 		if ball < 1 || ball > game.RedRange {
-			return errors.New(fmt.Sprintf("������볬����Χ(1-%d)", game.RedRange))
+			return errors.New(fmt.Sprintf("红球号码超出范围(1-%d)", game.RedRange))
 		}
 		if usedRed[ball] {
-			return errors.New("��������ظ�")
+			return errors.New("红球号码重复")
 		}
 		usedRed[ball] = true
 	}
 
-	// ��֤����Χ��Ψһ��
+	// 验证蓝球范围和唯一性
 	usedBlue := make(map[int]bool)
 	for _, ball := range blueBalls {
 		if ball < 1 || ball > game.BlueRange {
-			return errors.New(fmt.Sprintf("������볬����Χ(1-%d)", game.BlueRange))
+			return errors.New(fmt.Sprintf("蓝球号码超出范围(1-%d)", game.BlueRange))
 		}
 		if usedBlue[ball] {
-			return errors.New("��������ظ�")
+			return errors.New("蓝球号码重复")
 		}
 		usedBlue[ball] = true
 	}
@@ -93,20 +93,51 @@ func ValidateNumbers(game *model.LotteryGame, redBalls, blueBalls model.NumberAr
 	return nil
 }
 
-// SaveUserNumbers �����û�����
-func SaveUserNumbers(db *gorm.DB, userID uint64, gameID uint, redBalls, blueBalls model.NumberArray) error {
-	// ������Ϸ��Ϣ
+// SaveUserNumber 保存用户号码
+func SaveUserNumber(db *gorm.DB, userID uint64, gameID uint64, redBalls, blueBalls model.NumberArray, nickname, source string) (*model.UserNumber, error) {
+	// 获取游戏信息
 	var game model.LotteryGame
 	if err := db.First(&game, gameID).Error; err != nil {
-		return fmt.Errorf("��Ϸ������")
+		return nil, fmt.Errorf("游戏不存在")
 	}
 
-	// ��֤����
+	// 验证号码
+	if err := ValidateNumbers(&game, redBalls, blueBalls); err != nil {
+		return nil, err
+	}
+
+	// 创建用户号码记录
+	userNumber := model.UserNumber{
+		UserID:    userID,
+		GameID:    uint64(gameID),
+		RedBalls:  redBalls,
+		BlueBalls: blueBalls,
+		Nickname:  nickname,
+		Source:    source,
+		IsActive:  true,
+	}
+
+	if err := db.Create(&userNumber).Error; err != nil {
+		return nil, err
+	}
+
+	return &userNumber, nil
+}
+
+// SaveUserNumbers 保存用户号码（批量）
+func SaveUserNumbers(db *gorm.DB, userID uint64, gameID uint64, redBalls, blueBalls model.NumberArray) error {
+	// 获取游戏信息
+	var game model.LotteryGame
+	if err := db.First(&game, gameID).Error; err != nil {
+		return fmt.Errorf("游戏不存在")
+	}
+
+	// 验证号码
 	if err := ValidateNumbers(&game, redBalls, blueBalls); err != nil {
 		return err
 	}
 
-	// �����û������¼
+	// 创建用户号码记录
 	userNumber := model.UserNumber{
 		UserID:    userID,
 		GameID:    uint64(gameID),
@@ -118,7 +149,35 @@ func SaveUserNumbers(db *gorm.DB, userID uint64, gameID uint, redBalls, blueBall
 	return db.Create(&userNumber).Error
 }
 
-// GetUserNumbers ��ȡ�û������б�
+// UpdateUserNumber 更新用户号码
+func UpdateUserNumber(db *gorm.DB, userID uint64, numberID uint64, nickname string, isActive *bool) error {
+	// 查找用户号码
+	var userNumber model.UserNumber
+	if err := db.Where("id = ? AND user_id = ?", numberID, userID).First(&userNumber).Error; err != nil {
+		return fmt.Errorf("号码不存在或不属于该用户")
+	}
+
+	// 更新字段
+	updates := make(map[string]interface{})
+
+	if nickname != "" {
+		updates["nickname"] = nickname
+	}
+
+	if isActive != nil {
+		updates["is_active"] = *isActive
+	}
+
+	// 如果没有需要更新的字段，直接返回
+	if len(updates) == 0 {
+		return nil
+	}
+
+	// 执行更新
+	return db.Model(&userNumber).Updates(updates).Error
+}
+
+// GetUserNumbers 获取用户号码列表
 func GetUserNumbers(db *gorm.DB, userID uint64, gameCode string, page, pageSize int) ([]model.UserNumber, int64, error) {
 	var numbers []model.UserNumber
 	var total int64
@@ -126,46 +185,58 @@ func GetUserNumbers(db *gorm.DB, userID uint64, gameCode string, page, pageSize 
 	query := db.Model(&model.UserNumber{}).Where("user_id = ?", userID)
 
 	if gameCode != "" {
-		// ͨ��gameCode������ѯ
+		// 通过gameCode条件查询
 		query = query.Joins("JOIN lottery_games ON user_numbers.game_id = lottery_games.id").
 			Where("lottery_games.name = ?", gameCode)
 	}
 
-	// ��ȡ����
+	// 获取总数
 	err := query.Count(&total).Error
 	if err != nil {
 		return nil, 0, err
 	}
 
-	// ��ҳ��ѯ
+	// 分页查询
 	offset := (page - 1) * pageSize
 	err = query.Preload("Game").Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&numbers).Error
 
 	return numbers, total, err
 }
 
-// CheckWinningNumbers ����н�����
+// DeleteUserNumber 删除用户号码
+func DeleteUserNumber(db *gorm.DB, userID uint64, numberID uint64) error {
+	result := db.Where("id = ? AND user_id = ?", numberID, userID).Delete(&model.UserNumber{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("号码不存在或不属于该用户")
+	}
+	return nil
+}
+
+// CheckWinningNumbers 检查中奖号码
 func CheckWinningNumbers(db *gorm.DB, userNumberID uint, drawResultID uint) (*model.UserDraw, error) {
-	// ��ȡ�û�����
+	// 获取用户号码
 	var userNumber model.UserNumber
 	if err := db.Preload("Game").First(&userNumber, userNumberID).Error; err != nil {
-		return nil, fmt.Errorf("�û����벻����")
+		return nil, fmt.Errorf("用户号码不存在")
 	}
 
-	// ��ȡ�������
+	// 获取开奖结果
 	var drawResult model.DrawResult
 	if err := db.First(&drawResult, drawResultID).Error; err != nil {
-		return nil, fmt.Errorf("�������������")
+		return nil, fmt.Errorf("开奖结果不存在")
 	}
 
-	// ����н����
+	// 计算中奖情况
 	redMatches := countMatches(userNumber.RedBalls, drawResult.RedBalls)
 	blueMatches := countMatches(userNumber.BlueBalls, drawResult.BlueBalls)
 
-	// �жϽ���
+	// 判断奖级
 	prizeLevel := determinePrizeLevel(userNumber.Game.Name, redMatches, blueMatches)
 
-	// �����н���¼
+	// 创建中奖记录
 	userDraw := &model.UserDraw{
 		UserNumberID: userNumberID,
 		DrawResultID: drawResultID,
@@ -181,7 +252,7 @@ func CheckWinningNumbers(db *gorm.DB, userNumberID uint, drawResultID uint) (*mo
 	return userDraw, nil
 }
 
-// countMatches ����ƥ������
+// countMatches 计算匹配数量
 func countMatches(userBalls, drawBalls model.NumberArray) int {
 	matches := 0
 	for _, userBall := range userBalls {
@@ -195,64 +266,64 @@ func countMatches(userBalls, drawBalls model.NumberArray) int {
 	return matches
 }
 
-// determinePrizeLevel �жϽ���
+// determinePrizeLevel 判断奖级
 func determinePrizeLevel(gameName string, redMatches, blueMatches int) int {
 	switch gameName {
-	case "˫ɫ��":
+	case "双色球":
 		return determineSSQPrizeLevel(redMatches, blueMatches)
-	case "����͸":
+	case "大乐透":
 		return determineDLTPrizeLevel(redMatches, blueMatches)
 	default:
 		return 0
 	}
 }
 
-// determineSSQPrizeLevel �ж�˫ɫ�򽱼�
+// determineSSQPrizeLevel 判断双色球奖级
 func determineSSQPrizeLevel(redMatches, blueMatches int) int {
 	if redMatches == 6 && blueMatches == 1 {
-		return 1 // һ�Ƚ�
+		return 1 // 一等奖
 	} else if redMatches == 6 && blueMatches == 0 {
-		return 2 // ���Ƚ�
+		return 2 // 二等奖
 	} else if redMatches == 5 && blueMatches == 1 {
-		return 3 // ���Ƚ�
+		return 3 // 三等奖
 	} else if (redMatches == 5 && blueMatches == 0) || (redMatches == 4 && blueMatches == 1) {
-		return 4 // �ĵȽ�
+		return 4 // 四等奖
 	} else if (redMatches == 4 && blueMatches == 0) || (redMatches == 3 && blueMatches == 1) {
-		return 5 // ��Ƚ�
+		return 5 // 五等奖
 	} else if (redMatches == 2 && blueMatches == 1) || (redMatches == 1 && blueMatches == 1) || (redMatches == 0 && blueMatches == 1) {
-		return 6 // ���Ƚ�
+		return 6 // 六等奖
 	}
-	return 0 // δ�н�
+	return 0 // 未中奖
 }
 
-// determineDLTPrizeLevel �жϴ���͸����
+// determineDLTPrizeLevel 判断大乐透奖级
 func determineDLTPrizeLevel(redMatches, blueMatches int) int {
 	if redMatches == 5 && blueMatches == 2 {
-		return 1 // һ�Ƚ�
+		return 1 // 一等奖
 	} else if redMatches == 5 && blueMatches == 1 {
-		return 2 // ���Ƚ�
+		return 2 // 二等奖
 	} else if redMatches == 5 && blueMatches == 0 {
-		return 3 // ���Ƚ�
+		return 3 // 三等奖
 	} else if redMatches == 4 && blueMatches == 2 {
-		return 4 // �ĵȽ�
+		return 4 // 四等奖
 	} else if (redMatches == 4 && blueMatches == 1) || (redMatches == 3 && blueMatches == 2) {
-		return 5 // ��Ƚ�
+		return 5 // 五等奖
 	} else if (redMatches == 4 && blueMatches == 0) || (redMatches == 3 && blueMatches == 1) || (redMatches == 2 && blueMatches == 2) {
-		return 6 // ���Ƚ�
+		return 6 // 六等奖
 	} else if (redMatches == 3 && blueMatches == 0) || (redMatches == 1 && blueMatches == 2) || (redMatches == 2 && blueMatches == 1) || (redMatches == 0 && blueMatches == 2) {
-		return 7 // �ߵȽ�
+		return 7 // 七等奖
 	} else if (redMatches == 1 && blueMatches == 1) || (redMatches == 0 && blueMatches == 1) {
-		return 8 // �˵Ƚ�
+		return 8 // 八等奖
 	}
-	return 0 // δ�н�
+	return 0 // 未中奖
 }
 
-// GetUserDraws ��ȡ�û��н���¼
+// GetUserDraws 获取用户中奖记录
 func GetUserDraws(db *gorm.DB, userID uint64, page, pageSize int) ([]model.UserDraw, int64, error) {
 	var draws []model.UserDraw
 	var total int64
 
-	// ��ȡ����
+	// 获取总数
 	err := db.Model(&model.UserDraw{}).
 		Joins("JOIN user_numbers ON user_draws.user_number_id = user_numbers.id").
 		Where("user_numbers.user_id = ?", userID).
@@ -261,7 +332,7 @@ func GetUserDraws(db *gorm.DB, userID uint64, page, pageSize int) ([]model.UserD
 		return nil, 0, err
 	}
 
-	// ��ҳ��ѯ
+	// 分页查询
 	offset := (page - 1) * pageSize
 	err = db.Preload("UserNumber.Game").
 		Preload("DrawResult").
