@@ -12,8 +12,8 @@ import (
 func main() {
 	var (
 		gameCode = flag.String("game", "ssq", "游戏代码 (ssq/dlt)")
-		action   = flag.String("action", "test", "操作类型 (test/crawl/mock)")
-		period   = flag.String("period", "2025099", "期号")
+		action   = flag.String("action", "test", "操作类型 (test/crawl/mock/testcwl/testdlt/test500dlt/history)")
+		pages    = flag.Int("pages", 1, "抓取历史数据d的页数")
 	)
 	flag.Parse()
 
@@ -39,14 +39,13 @@ func main() {
 		}
 		fmt.Println("抓取保存成功!")
 
-	case "mock":
-		fmt.Printf("生成模拟数据: %s 期号 %s\n", *gameCode, *period)
-		result := crawler.MockDrawResult(*gameCode, *period)
-		err := crawler.SaveDrawResult(result)
+	case "history":
+		fmt.Printf("抓取 %s 过去 %d 年的历史数据...\n", *gameCode, *pages)
+		err := crawler.CrawlHistoryData(*gameCode, *pages)
 		if err != nil {
-			log.Fatalf("保存失败: %v", err)
+			log.Fatalf("历史数据抓取失败: %v", err)
 		}
-		fmt.Printf("模拟数据生成成功: %+v\n", result)
+		fmt.Println("历史数据抓取完成!")
 
 	case "schedule":
 		fmt.Println("启动定时抓取任务...")
@@ -54,6 +53,6 @@ func main() {
 
 	default:
 		fmt.Printf("不支持的操作: %s\n", *action)
-		fmt.Println("支持的操作: test, crawl, mock, schedule")
+		fmt.Println("支持的操作: test, crawl, mock, testcwl, testdlt, test500dlt, history, schedule")
 	}
 }

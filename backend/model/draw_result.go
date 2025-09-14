@@ -39,15 +39,20 @@ func (na NumberArray) Value() (driver.Value, error) {
 
 // DrawResult 开奖结果表
 type DrawResult struct {
-	ID         uint64      `gorm:"primaryKey;column:id" json:"id"`
-	GameID     uint64      `gorm:"not null;index;column:game_id" json:"game_id"`           // 游戏ID
-	DrawNumber string      `gorm:"size:32;not null;column:draw_number" json:"draw_number"` // 期号
-	RedBalls   NumberArray `gorm:"type:json;not null;column:red_balls" json:"red_balls"`   // 红球号码JSON数组
-	BlueBalls  NumberArray `gorm:"type:json;not null;column:blue_balls" json:"blue_balls"` // 蓝球号码JSON数组
-	DrawTime   time.Time   `gorm:"not null;column:draw_time" json:"draw_time"`             // 开奖时间
-	IsActive   bool        `gorm:"default:true;column:is_active" json:"is_active"`         // 是否有效
-	CreatedAt  time.Time   `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt  time.Time   `gorm:"column:updated_at" json:"updated_at"`
+	ID           uint64      `gorm:"primaryKey;column:id" json:"id"`
+	GameID       uint64      `gorm:"not null;index;column:game_id" json:"game_id"`           // 游戏ID
+	Period       string      `gorm:"size:32;not null;column:period" json:"period"`           // 期号
+	RedBalls     NumberArray `gorm:"type:json;not null;column:red_balls" json:"red_balls"`   // 红球号码JSON数组
+	BlueBalls    NumberArray `gorm:"type:json;not null;column:blue_balls" json:"blue_balls"` // 蓝球号码JSON数组
+	DrawDate     time.Time   `gorm:"not null;column:draw_date" json:"draw_date"`             // 开奖时间
+	SalesAmount  int64       `gorm:"default:0;column:sales_amount" json:"sales_amount"`      // 销售额(分)
+	PrizePool    int64       `gorm:"default:0;column:prize_pool" json:"prize_pool"`          // 奖池金额(分)
+	FirstPrize   int         `gorm:"default:0;column:first_prize" json:"first_prize"`        // 一等奖注数
+	FirstAmount  int64       `gorm:"default:0;column:first_amount" json:"first_amount"`      // 一等奖单注奖金(分)
+	SecondPrize  int         `gorm:"default:0;column:second_prize" json:"second_prize"`      // 二等奖注数
+	SecondAmount int64       `gorm:"default:0;column:second_amount" json:"second_amount"`    // 二等奖单注奖金(分)
+	CreatedAt    time.Time   `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt    time.Time   `gorm:"column:updated_at" json:"updated_at"`
 
 	// 关联
 	Game LotteryGame `gorm:"foreignKey:GameID;references:ID;constraint:OnDelete:CASCADE"`
@@ -81,10 +86,10 @@ func (dao *DrawResultDAO) GetByID(id uint64) (*DrawResult, error) {
 	return &result, nil
 }
 
-// GetByDrawNumber 根据期号获取开奖结果
-func (dao *DrawResultDAO) GetByDrawNumber(drawNumber string) (*DrawResult, error) {
+// GetByPeriod 根据期号获取开奖结果
+func (dao *DrawResultDAO) GetByPeriod(period string) (*DrawResult, error) {
 	var result DrawResult
-	err := dao.db.Where("draw_number = ?", drawNumber).First(&result).Error
+	err := dao.db.Where("period = ?", period).First(&result).Error
 	if err != nil {
 		return nil, err
 	}

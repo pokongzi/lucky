@@ -31,24 +31,24 @@ func initLotteryGames(db *gorm.DB) error {
 
 	// 初始化双色球
 	ssq := model.LotteryGame{
-		Name:        "双色球",
-		Description: "中国福利彩票双色球游戏",
-		RedCount:    6,
-		BlueCount:   1,
-		RedRange:    33,
-		BlueRange:   16,
-		IsActive:    true,
+		GameCode:        "ssq",
+		GameName:        "双色球",
+		RedBallCount:    33,
+		BlueBallCount:   16,
+		RedSelectCount:  6,
+		BlueSelectCount: 1,
+		IsActive:        true,
 	}
 
 	// 初始化大乐透
 	dlt := model.LotteryGame{
-		Name:        "大乐透",
-		Description: "中国体育彩票超级大乐透",
-		RedCount:    5,
-		BlueCount:   2,
-		RedRange:    35,
-		BlueRange:   12,
-		IsActive:    true,
+		GameCode:        "dlt",
+		GameName:        "大乐透",
+		RedBallCount:    35,
+		BlueBallCount:   12,
+		RedSelectCount:  5,
+		BlueSelectCount: 2,
+		IsActive:        true,
 	}
 
 	// 批量创建

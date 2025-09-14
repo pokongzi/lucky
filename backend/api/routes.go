@@ -58,6 +58,5 @@ func RegisterCrawlerRoutes(r *gin.Engine) {
 	{
 		crawlerGroup.POST("/crawl/:gameCode", CrawlLatestHandler) // 抓取最新开奖数据
 		crawlerGroup.GET("/test/:gameCode", TestCrawlHandler)     // 测试抓取功能
-		crawlerGroup.POST("/mock/:gameCode", MockDataHandler)     // 生成模拟数据
 	}
 }

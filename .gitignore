@@ -77,12 +77,11 @@ project.private.config.json
 coverage.out
 coverage.html
 
-# 配置文件（如果包含敏感信息）
-config/local.ini
-config/production.ini
+
 
 # 实际配置文件（包含敏感信息）
 backend/config/ini.ini
+backend/config/local.ini
 
 # 上传文件目录
 uploads/

@@ -8,16 +8,16 @@ import (
 
 // LotteryGame 彩票游戏表
 type LotteryGame struct {
-	ID          uint64    `gorm:"primaryKey;column:id" json:"id"`
-	Name        string    `gorm:"size:64;not null;column:name" json:"name"`       // 游戏名称
-	Description string    `gorm:"size:255;column:description" json:"description"` // 游戏描述
-	RedCount    int       `gorm:"not null;column:red_count" json:"red_count"`     // 红球数量
-	BlueCount   int       `gorm:"not null;column:blue_count" json:"blue_count"`   // 蓝球数量
-	RedRange    int       `gorm:"not null;column:red_range" json:"red_range"`     // 红球范围
-	BlueRange   int       `gorm:"not null;column:blue_range" json:"blue_range"`   // 蓝球范围
-	IsActive    bool      `gorm:"default:true;column:is_active" json:"is_active"` // 是否启用
-	CreatedAt   time.Time `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt   time.Time `gorm:"column:updated_at" json:"updated_at"`
+	ID              uint64    `gorm:"primaryKey;column:id" json:"id"`
+	GameCode        string    `gorm:"size:32;not null;column:game_code" json:"game_code"`         // 游戏代码
+	GameName        string    `gorm:"size:64;not null;column:game_name" json:"game_name"`         // 游戏名称
+	RedBallCount    int       `gorm:"not null;column:red_ball_count" json:"red_ball_count"`       // 红球总数
+	BlueBallCount   int       `gorm:"not null;column:blue_ball_count" json:"blue_ball_count"`     // 蓝球总数
+	RedSelectCount  int       `gorm:"not null;column:red_select_count" json:"red_select_count"`   // 红球选择数
+	BlueSelectCount int       `gorm:"not null;column:blue_select_count" json:"blue_select_count"` // 蓝球选择数
+	IsActive        bool      `gorm:"default:true;column:is_active" json:"is_active"`             // 是否启用
+	CreatedAt       time.Time `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt       time.Time `gorm:"column:updated_at" json:"updated_at"`
 }
 
 func (LotteryGame) TableName() string {
@@ -51,7 +51,7 @@ func (dao *LotteryGameDAO) GetByID(id uint64) (*LotteryGame, error) {
 // GetByName 根据名称获取彩票游戏
 func (dao *LotteryGameDAO) GetByName(name string) (*LotteryGame, error) {
 	var game LotteryGame
-	err := dao.db.Where("name = ?", name).First(&game).Error
+	err := dao.db.Where("game_name = ?", name).First(&game).Error
 	if err != nil {
 		return nil, err
 	}

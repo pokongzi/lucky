@@ -23,8 +23,8 @@ func GenerateRandomNumbers(game *model.LotteryGame, count int) ([]RandomNumberRe
 	results := make([]RandomNumberResult, count)
 
 	for i := 0; i < count; i++ {
-		redBalls := generateRandomBalls(1, game.RedRange, game.RedCount)
-		blueBalls := generateRandomBalls(1, game.BlueRange, game.BlueCount)
+		redBalls := generateRandomBalls(1, game.RedBallCount, game.RedSelectCount)
+		blueBalls := generateRandomBalls(1, game.BlueBallCount, game.BlueSelectCount)
 
 		results[i] = RandomNumberResult{
 			RedBalls:  redBalls,
@@ -57,20 +57,20 @@ func generateRandomBalls(min, max, count int) model.NumberArray {
 // ValidateNumbers 验证号码
 func ValidateNumbers(game *model.LotteryGame, redBalls, blueBalls model.NumberArray) error {
 	// 验证红球数量
-	if len(redBalls) != game.RedCount {
-		return errors.New(fmt.Sprintf("红球数量不正确，需要%d个", game.RedCount))
+	if len(redBalls) != game.RedSelectCount {
+		return errors.New(fmt.Sprintf("红球数量不正确，需要%d个", game.RedSelectCount))
 	}
 
 	// 验证蓝球数量
-	if len(blueBalls) != game.BlueCount {
-		return errors.New(fmt.Sprintf("蓝球数量不正确，需要%d个", game.BlueCount))
+	if len(blueBalls) != game.BlueSelectCount {
+		return errors.New(fmt.Sprintf("蓝球数量不正确，需要%d个", game.BlueSelectCount))
 	}
 
 	// 验证红球范围和唯一性
 	usedRed := make(map[int]bool)
 	for _, ball := range redBalls {
-		if ball < 1 || ball > game.RedRange {
-			return errors.New(fmt.Sprintf("红球号码超出范围(1-%d)", game.RedRange))
+		if ball < 1 || ball > game.RedBallCount {
+			return errors.New(fmt.Sprintf("红球号码超出范围(1-%d)", game.RedBallCount))
 		}
 		if usedRed[ball] {
 			return errors.New("红球号码重复")
@@ -81,8 +81,8 @@ func ValidateNumbers(game *model.LotteryGame, redBalls, blueBalls model.NumberAr
 	// 验证蓝球范围和唯一性
 	usedBlue := make(map[int]bool)
 	for _, ball := range blueBalls {
-		if ball < 1 || ball > game.BlueRange {
-			return errors.New(fmt.Sprintf("蓝球号码超出范围(1-%d)", game.BlueRange))
+		if ball < 1 || ball > game.BlueBallCount {
+			return errors.New(fmt.Sprintf("蓝球号码超出范围(1-%d)", game.BlueBallCount))
 		}
 		if usedBlue[ball] {
 			return errors.New("蓝球号码重复")
@@ -234,7 +234,7 @@ func CheckWinningNumbers(db *gorm.DB, userNumberID uint, drawResultID uint) (*mo
 	blueMatches := countMatches(userNumber.BlueBalls, drawResult.BlueBalls)
 
 	// 判断奖级
-	prizeLevel := determinePrizeLevel(userNumber.Game.Name, redMatches, blueMatches)
+	prizeLevel := determinePrizeLevel(userNumber.Game.GameName, redMatches, blueMatches)
 
 	// 创建中奖记录
 	userDraw := &model.UserDraw{

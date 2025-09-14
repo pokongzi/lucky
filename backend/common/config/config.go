@@ -9,7 +9,8 @@ import (
 var Config *ini.File
 
 func init() {
-	ConfigFile, err := ini.Load("config/ini.ini")
+	// ConfigFile, err := ini.Load("config/ini.ini")
+	ConfigFile, err := ini.Load("D:/go/src/lucky/backend/config/local.ini")
 	if err != nil {
 		log.Fatal("未找到配置文件", err)
 		return
