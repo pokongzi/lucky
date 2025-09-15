@@ -247,6 +247,227 @@ func (c *CrawlerService) CrawlLatestResults(gameCode string) (*DrawResult, error
 	return nil, fmt.Errorf("所有数据源都抓取失败")
 }
 
+// SportteryResult 体彩API返回结果结构
+type SportteryResult struct {
+	Value struct {
+		List []struct {
+			LotteryDrawNum    string `json:"lotteryDrawNum"`    // 期号
+			LotteryDrawTime   string `json:"lotteryDrawTime"`   // 开奖日期
+			LotteryDrawResult string `json:"lotteryDrawResult"` // 开奖结果
+		} `json:"list"`
+		PageNo   int `json:"pageNo"`
+		PageSize int `json:"pageSize"`
+		Pages    int `json:"pages"`
+		Total    int `json:"total"`
+	} `json:"value"`
+	ErrorCode    string `json:"errorCode"`
+	ErrorMessage string `json:"errorMessage"`
+}
+
+// crawlSSQHistory 从中国福彩API批量抓取双色球历史数据
+func (c *CrawlerService) crawlSSQHistory() ([]*DrawResult, error) {
+	fmt.Println("开始从中国福彩API批量抓取双色球历史数据...")
+
+	var allResults []*DrawResult
+	maxPages := 10 // 最多抓取10页，每页30条，共300期数据
+
+	for page := 1; page <= maxPages; page++ {
+		fmt.Printf("正在抓取第 %d 页数据...
+", page)
+
+		url := fmt.Sprintf("https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=%d&pageSize=30&week=&systemType=PC", page)
+		client := &http.Client{Timeout: 10 * time.Second}
+
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return nil, fmt.Errorf("创建请求失败: %v", err)
+		}
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("请求失败: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("API请求失败，状态码: %d", resp.StatusCode)
+		}
+
+		var apiResult CWLResult
+		if err := json.NewDecoder(resp.Body).Decode(&apiResult); err != nil {
+			return nil, fmt.Errorf("解析API响应失败: %v", err)
+		}
+
+		if apiResult.State != 0 {
+			return nil, fmt.Errorf("API返回错误: %s", apiResult.Message)
+		}
+
+		// 如果没有更多数据，退出循环
+		if len(apiResult.Result) == 0 {
+			break
+		}
+
+		// 处理本页数据
+		for _, item := range apiResult.Result {
+			result := &DrawResult{
+				GameCode: "ssq",
+				Period:   item.Code,
+				DrawDate: item.Date,
+			}
+
+			// 解析红球
+			redStrs := strings.Split(item.Red, ",")
+			for _, s := range redStrs {
+				num, err := strconv.Atoi(s)
+				if err != nil {
+					fmt.Printf("解析红球号码失败: %v, 跳过此期
+", err)
+					continue
+				}
+				result.RedBalls = append(result.RedBalls, num)
+			}
+
+			// 解析蓝球
+			blueNum, err := strconv.Atoi(item.Blue)
+			if err != nil {
+				fmt.Printf("解析蓝球号码失败: %v, 跳过此期
+", err)
+				continue
+			}
+			result.BlueBalls = []int{blueNum}
+
+			// 验证结果
+			if len(result.RedBalls) != 6 || len(result.BlueBalls) != 1 {
+				fmt.Printf("期号 %s 球号数量错误，红球: %d, 蓝球: %d, 跳过此期
+",
+					result.Period, len(result.RedBalls), len(result.BlueBalls))
+				continue
+			}
+
+			allResults = append(allResults, result)
+		}
+
+		fmt.Printf("第 %d 页数据抓取完成，本页获取 %d 条记录
+", page, len(apiResult.Result))
+
+		// 添加延迟避免请求过于频繁
+		time.Sleep(1 * time.Second)
+	}
+
+	fmt.Printf("双色球历史数据抓取完成，共获取 %d 条记录
+", len(allResults))
+	return allResults, nil
+}
+
+// crawlDLTHistory 从体彩API批量抓取大乐透历史数据
+func (c *CrawlerService) crawlDLTHistory() ([]*DrawResult, error) {
+	fmt.Println("开始从体彩API批量抓取大乐透历史数据...")
+
+	var allResults []*DrawResult
+	maxPages := 10 // 最多抓取10页，每页30条，共300期数据
+
+	for page := 1; page <= maxPages; page++ {
+		fmt.Printf("正在抓取第 %d 页数据...
+", page)
+
+		url := fmt.Sprintf("https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry?gameNo=85&provinceId=0&pageSize=30&isVerify=1&pageNo=%d", page)
+		client := &http.Client{Timeout: 10 * time.Second}
+
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return nil, fmt.Errorf("创建请求失败: %v", err)
+		}
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("请求失败: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("API请求失败，状态码: %d", resp.StatusCode)
+		}
+
+		var apiResult SportteryResult
+		if err := json.NewDecoder(resp.Body).Decode(&apiResult); err != nil {
+			return nil, fmt.Errorf("解析API响应失败: %v", err)
+		}
+
+		if apiResult.ErrorCode != "0" {
+			return nil, fmt.Errorf("API返回错误: %s", apiResult.ErrorMessage)
+		}
+
+		// 如果没有更多数据，退出循环
+		if len(apiResult.Value.List) == 0 {
+			break
+		}
+
+		// 处理本页数据
+		for _, item := range apiResult.Value.List {
+			result := &DrawResult{
+				GameCode: "dlt",
+				Period:   item.LotteryDrawNum,
+				DrawDate: item.LotteryDrawTime,
+			}
+
+			// 解析开奖结果，格式如："01,11,14,25,27+04,10"
+			parts := strings.Split(item.LotteryDrawResult, "+")
+			if len(parts) != 2 {
+				fmt.Printf("期号 %s 开奖结果格式错误: %s, 跳过此期
+",
+					result.Period, item.LotteryDrawResult)
+				continue
+			}
+
+			// 解析前区号码
+			redStrs := strings.Split(parts[0], ",")
+			for _, s := range redStrs {
+				num, err := strconv.Atoi(s)
+				if err != nil {
+					fmt.Printf("解析前区号码失败: %v, 跳过此期
+", err)
+					continue
+				}
+				result.RedBalls = append(result.RedBalls, num)
+			}
+
+			// 解析后区号码
+			blueStrs := strings.Split(parts[1], ",")
+			for _, s := range blueStrs {
+				num, err := strconv.Atoi(s)
+				if err != nil {
+					fmt.Printf("解析后区号码失败: %v, 跳过此期
+", err)
+					continue
+				}
+				result.BlueBalls = append(result.BlueBalls, num)
+			}
+
+			// 验证结果
+			if len(result.RedBalls) != 5 || len(result.BlueBalls) != 2 {
+				fmt.Printf("期号 %s 球号数量错误，前区: %d, 后区: %d, 跳过此期
+",
+					result.Period, len(result.RedBalls), len(result.BlueBalls))
+				continue
+			}
+
+			allResults = append(allResults, result)
+		}
+
+		fmt.Printf("第 %d 页数据抓取完成，本页获取 %d 条记录
+", page, len(apiResult.Value.List))
+
+		// 添加延迟避免请求过于频繁
+		time.Sleep(1 * time.Second)
+	}
+
+	fmt.Printf("大乐透历史数据抓取完成，共获取 %d 条记录
+", len(allResults))
+	return allResults, nil
+}
+
 // crawlFromSource 从指定数据源抓取
 func (c *CrawlerService) crawlFromSource(source DrawDataSource, gameCode string) (*DrawResult, error) {
 	switch source.Name {
