@@ -1,7 +1,6 @@
 package service
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -9,6 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"lucky/common/http/fucai"
+	"lucky/common/http/ticai"
+	"lucky/common/log"
 	"lucky/common/mysql"
 	"lucky/model"
 
@@ -39,132 +41,6 @@ type CWLResult struct {
 		Red  string `json:"red"`  // 红球
 		Blue string `json:"blue"` // 蓝球
 	} `json:"result"`
-}
-
-// crawlFromCWL 从中国福彩API抓取（仅双色球）
-func (c *CrawlerService) crawlFromCWL(gameCode string) (*DrawResult, error) {
-	if gameCode != "ssq" {
-		return nil, fmt.Errorf("中国福彩暂只支持双色球")
-	}
-
-	url := "https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&pageSize=1&pageNo=1&systemType=PC"
-	client := &http.Client{Timeout: 10 * time.Second}
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("创建请求失败: %v", err)
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("请求失败: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API请求失败，状态码: %d", resp.StatusCode)
-	}
-
-	var apiResult CWLResult
-	if err := json.NewDecoder(resp.Body).Decode(&apiResult); err != nil {
-		return nil, fmt.Errorf("解析API响应失败: %v", err)
-	}
-
-	if apiResult.State != 0 || len(apiResult.Result) == 0 {
-		return nil, fmt.Errorf("API返回错误: %s", apiResult.Message)
-	}
-
-	latest := apiResult.Result[0]
-	result := &DrawResult{
-		GameCode: gameCode,
-		Period:   latest.Code,
-		DrawDate: latest.Date,
-	}
-
-	// 解析红球
-	redStrs := strings.Split(latest.Red, ",")
-	for _, s := range redStrs {
-		num, err := strconv.Atoi(s)
-		if err != nil {
-			return nil, fmt.Errorf("解析红球号码失败: %v", err)
-		}
-		result.RedBalls = append(result.RedBalls, num)
-	}
-
-	// 解析蓝球
-	blueNum, err := strconv.Atoi(latest.Blue)
-	if err != nil {
-		return nil, fmt.Errorf("解析蓝球号码失败: %v", err)
-	}
-	result.BlueBalls = []int{blueNum}
-
-	return result, nil
-}
-
-// crawlCWLHistory 从中国福彩API抓取历史数据
-func (c *CrawlerService) crawlCWLHistory(gameCode string, page int) ([]*DrawResult, error) {
-	if gameCode != "ssq" {
-		return nil, fmt.Errorf("中国福彩历史数据暂只支持双色球")
-	}
-
-	url := fmt.Sprintf("https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&pageSize=30&pageNo=%d&systemType=PC", page)
-	client := &http.Client{Timeout: 10 * time.Second}
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("创建请求失败: %v", err)
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("请求失败: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API请求失败，状态码: %d", resp.StatusCode)
-	}
-
-	var apiResult CWLResult
-	if err := json.NewDecoder(resp.Body).Decode(&apiResult); err != nil {
-		return nil, fmt.Errorf("解析API响应失败: %v", err)
-	}
-
-	if apiResult.State != 0 {
-		return nil, fmt.Errorf("API返回错误: %s", apiResult.Message)
-	}
-
-	var results []*DrawResult
-	for _, item := range apiResult.Result {
-		result := &DrawResult{
-			GameCode: gameCode,
-			Period:   item.Code,
-			DrawDate: item.Date,
-		}
-
-		// 解析红球
-		redStrs := strings.Split(item.Red, ",")
-		for _, s := range redStrs {
-			num, err := strconv.Atoi(s)
-			if err != nil {
-				return nil, fmt.Errorf("解析红球号码失败: %v", err)
-			}
-			result.RedBalls = append(result.RedBalls, num)
-		}
-
-		// 解析蓝球
-		blueNum, err := strconv.Atoi(item.Blue)
-		if err != nil {
-			return nil, fmt.Errorf("解析蓝球号码失败: %v", err)
-		}
-		result.BlueBalls = []int{blueNum}
-
-		results = append(results, result)
-	}
-
-	return results, nil
 }
 
 // NewCrawlerService 创建抓取服务实例
@@ -272,35 +148,26 @@ func (c *CrawlerService) crawlSSQHistory() ([]*DrawResult, error) {
 	maxPages := 10 // 最多抓取10页，每页30条，共300期数据
 
 	for page := 1; page <= maxPages; page++ {
-		fmt.Printf("正在抓取第 %d 页数据...
-", page)
+		fmt.Printf("正在抓取第 %d 页数据...\n", page)
 
-		url := fmt.Sprintf("https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=&issueStart=&issueEnd=&dayStart=&dayEnd=&pageNo=%d&pageSize=30&week=&systemType=PC", page)
-		client := &http.Client{Timeout: 10 * time.Second}
+		// 使用 fucai 包构建请求
+		req := fucai.SSQHistoryReq{
+			Name:       "ssq", // 双色球
+			IssueCount: "",    // 期数
+			IssueStart: "",    // 开始期号
+			IssueEnd:   "",    // 结束期号
+			DayStart:   "",    // 开始日期
+			DayEnd:     "",    // 结束日期
+			PageNo:     page,  // 页码
+			PageSize:   30,    // 每页30条数据
+			Week:       "",    // 周
+			SystemType: "PC",  // PC系统
+		}
 
-		req, err := http.NewRequest("GET", url, nil)
+		// 调用 fucai 包获取数据
+		apiResult, err := fucai.FucaiHandlerInst.GetSSQHistory(req)
 		if err != nil {
-			return nil, fmt.Errorf("创建请求失败: %v", err)
-		}
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-
-		resp, err := client.Do(req)
-		if err != nil {
-			return nil, fmt.Errorf("请求失败: %v", err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("API请求失败，状态码: %d", resp.StatusCode)
-		}
-
-		var apiResult CWLResult
-		if err := json.NewDecoder(resp.Body).Decode(&apiResult); err != nil {
-			return nil, fmt.Errorf("解析API响应失败: %v", err)
-		}
-
-		if apiResult.State != 0 {
-			return nil, fmt.Errorf("API返回错误: %s", apiResult.Message)
+			return nil, fmt.Errorf("调用福彩API失败: %v", err)
 		}
 
 		// 如果没有更多数据，退出循环
@@ -321,8 +188,7 @@ func (c *CrawlerService) crawlSSQHistory() ([]*DrawResult, error) {
 			for _, s := range redStrs {
 				num, err := strconv.Atoi(s)
 				if err != nil {
-					fmt.Printf("解析红球号码失败: %v, 跳过此期
-", err)
+					fmt.Printf("解析红球号码失败: %v, 跳过此期\n", err)
 					continue
 				}
 				result.RedBalls = append(result.RedBalls, num)
@@ -331,32 +197,27 @@ func (c *CrawlerService) crawlSSQHistory() ([]*DrawResult, error) {
 			// 解析蓝球
 			blueNum, err := strconv.Atoi(item.Blue)
 			if err != nil {
-				fmt.Printf("解析蓝球号码失败: %v, 跳过此期
-", err)
+				fmt.Printf("解析蓝球号码失败: %v, 跳过此期\n", err)
 				continue
 			}
 			result.BlueBalls = []int{blueNum}
 
 			// 验证结果
 			if len(result.RedBalls) != 6 || len(result.BlueBalls) != 1 {
-				fmt.Printf("期号 %s 球号数量错误，红球: %d, 蓝球: %d, 跳过此期
-",
-					result.Period, len(result.RedBalls), len(result.BlueBalls))
+				fmt.Printf("期号 %s 球号数量错误，红球: %d, 蓝球: %d, 跳过此期\n", result.Period, len(result.RedBalls), len(result.BlueBalls))
 				continue
 			}
 
 			allResults = append(allResults, result)
 		}
 
-		fmt.Printf("第 %d 页数据抓取完成，本页获取 %d 条记录
-", page, len(apiResult.Result))
+		fmt.Printf("第 %d 页数据抓取完成，本页获取 %d 条记录\n", page, len(apiResult.Result))
 
 		// 添加延迟避免请求过于频繁
 		time.Sleep(1 * time.Second)
 	}
 
-	fmt.Printf("双色球历史数据抓取完成，共获取 %d 条记录
-", len(allResults))
+	fmt.Printf("双色球历史数据抓取完成，共获取 %d 条记录\n", len(allResults))
 	return allResults, nil
 }
 
@@ -368,35 +229,21 @@ func (c *CrawlerService) crawlDLTHistory() ([]*DrawResult, error) {
 	maxPages := 10 // 最多抓取10页，每页30条，共300期数据
 
 	for page := 1; page <= maxPages; page++ {
-		fmt.Printf("正在抓取第 %d 页数据...
-", page)
+		fmt.Printf("正在抓取第 %d 页数据...\n", page)
 
-		url := fmt.Sprintf("https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry?gameNo=85&provinceId=0&pageSize=30&isVerify=1&pageNo=%d", page)
-		client := &http.Client{Timeout: 10 * time.Second}
+		// 使用 ticai 包构建请求
+		req := ticai.DLTHistoryReq{
+			GameNo:     "85", // 大乐透游戏编号
+			ProvinceId: "0",  // 全国
+			PageSize:   30,   // 每页30条数据
+			PageNo:     page, // 页码
+			IsVerify:   1,    // 验证
+		}
 
-		req, err := http.NewRequest("GET", url, nil)
+		// 调用 ticai 包获取数据
+		apiResult, err := ticai.TicaiHandlerInst.GetDLTHistory(req)
 		if err != nil {
-			return nil, fmt.Errorf("创建请求失败: %v", err)
-		}
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-
-		resp, err := client.Do(req)
-		if err != nil {
-			return nil, fmt.Errorf("请求失败: %v", err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("API请求失败，状态码: %d", resp.StatusCode)
-		}
-
-		var apiResult SportteryResult
-		if err := json.NewDecoder(resp.Body).Decode(&apiResult); err != nil {
-			return nil, fmt.Errorf("解析API响应失败: %v", err)
-		}
-
-		if apiResult.ErrorCode != "0" {
-			return nil, fmt.Errorf("API返回错误: %s", apiResult.ErrorMessage)
+			return nil, fmt.Errorf("调用体彩API失败: %v", err)
 		}
 
 		// 如果没有更多数据，退出循环
@@ -415,8 +262,7 @@ func (c *CrawlerService) crawlDLTHistory() ([]*DrawResult, error) {
 			// 解析开奖结果，格式如："01,11,14,25,27+04,10"
 			parts := strings.Split(item.LotteryDrawResult, "+")
 			if len(parts) != 2 {
-				fmt.Printf("期号 %s 开奖结果格式错误: %s, 跳过此期
-",
+				fmt.Printf("期号 %s 开奖结果格式错误: %s, 跳过此期\n",
 					result.Period, item.LotteryDrawResult)
 				continue
 			}
@@ -426,8 +272,7 @@ func (c *CrawlerService) crawlDLTHistory() ([]*DrawResult, error) {
 			for _, s := range redStrs {
 				num, err := strconv.Atoi(s)
 				if err != nil {
-					fmt.Printf("解析前区号码失败: %v, 跳过此期
-", err)
+					fmt.Printf("解析前区号码失败: %v, 跳过此期\n", err)
 					continue
 				}
 				result.RedBalls = append(result.RedBalls, num)
@@ -438,8 +283,7 @@ func (c *CrawlerService) crawlDLTHistory() ([]*DrawResult, error) {
 			for _, s := range blueStrs {
 				num, err := strconv.Atoi(s)
 				if err != nil {
-					fmt.Printf("解析后区号码失败: %v, 跳过此期
-", err)
+					fmt.Printf("解析后区号码失败: %v, 跳过此期\n", err)
 					continue
 				}
 				result.BlueBalls = append(result.BlueBalls, num)
@@ -447,24 +291,20 @@ func (c *CrawlerService) crawlDLTHistory() ([]*DrawResult, error) {
 
 			// 验证结果
 			if len(result.RedBalls) != 5 || len(result.BlueBalls) != 2 {
-				fmt.Printf("期号 %s 球号数量错误，前区: %d, 后区: %d, 跳过此期
-",
-					result.Period, len(result.RedBalls), len(result.BlueBalls))
-				continue
+				log.Errorf("期号 %s 球号数量错误，前区: %d, 后区: %d, 跳过此期\n", result.Period, len(result.RedBalls), len(result.BlueBalls))
+				break
 			}
 
 			allResults = append(allResults, result)
 		}
 
-		fmt.Printf("第 %d 页数据抓取完成，本页获取 %d 条记录
-", page, len(apiResult.Value.List))
+		fmt.Printf("第 %d 页数据抓取完成，本页获取 %d 条记录\n", page, len(apiResult.Value.List))
 
 		// 添加延迟避免请求过于频繁
 		time.Sleep(1 * time.Second)
 	}
 
-	fmt.Printf("大乐透历史数据抓取完成，共获取 %d 条记录
-", len(allResults))
+	fmt.Printf("大乐透历史数据抓取完成，共获取 %d 条记录\n", len(allResults))
 	return allResults, nil
 }
 
@@ -1370,7 +1210,7 @@ func (c *CrawlerService) CrawlAndSaveLatest(gameCode string) error {
 // CrawlHistoryResults 抓取历史开奖结果
 func (c *CrawlerService) CrawlHistoryResults(gameCode string, periods []string) error {
 	for _, period := range periods {
-		result, err := c.crawlHistoryByPeriod(gameCode, period)
+		result, err := c.CrawlHistoryByPeriod(gameCode, period)
 		if err != nil {
 			fmt.Printf("抓取期号 %s 失败: %v\n", period, err)
 			continue
@@ -1389,7 +1229,7 @@ func (c *CrawlerService) CrawlHistoryResults(gameCode string, periods []string) 
 }
 
 // crawlHistoryByPeriod 根据期号抓取历史数据
-func (c *CrawlerService) crawlHistoryByPeriod(gameCode, period string) (*DrawResult, error) {
+func (c *CrawlerService) CrawlHistoryByPeriod(gameCode, period string) (*DrawResult, error) {
 	// 这里可以实现具体的历史数据抓取逻辑
 	// 不同网站的历史数据接口可能不同
 	return nil, fmt.Errorf("历史数据抓取功能待实现")
@@ -1416,167 +1256,6 @@ func (c *CrawlerService) ScheduleCrawl() {
 
 		fmt.Println("定时抓取任务完成")
 	}
-}
-
-// CrawlHistoryData 抓取历史数据
-func (c *CrawlerService) CrawlHistoryData(gameCode string, years int) error {
-	fmt.Printf("开始抓取 %s 过去 %d 年的历史数据...\n", gameCode, years)
-
-	// 计算时间范围
-	endDate := time.Now()
-	startDate := endDate.AddDate(-years, 0, 0)
-
-	fmt.Printf("抓取时间范围: %s 到 %s\n", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
-
-	// 生成期号列表
-	periods, err := c.generatePeriodList(gameCode, startDate, endDate)
-	if err != nil {
-		return fmt.Errorf("生成期号列表失败: %v", err)
-	}
-
-	fmt.Printf("共需要抓取 %d 期数据\n", len(periods))
-
-	// 批量抓取历史数据
-	successCount := 0
-	failCount := 0
-
-	for i, period := range periods {
-		fmt.Printf("抓取进度: %d/%d - 期号: %s\n", i+1, len(periods), period)
-
-		// 检查是否已存在（如果数据库可用）
-		if c.db != nil {
-			exists, err := c.checkPeriodExists(gameCode, period)
-			if err != nil {
-				fmt.Printf("检查期号 %s 是否存在时出错: %v\n", period, err)
-				// 继续执行，不跳过
-			} else if exists {
-				fmt.Printf("期号 %s 已存在，跳过\n", period)
-				continue
-			}
-		}
-
-		// 抓取单期数据
-		result, err := c.crawlSinglePeriod(gameCode, period)
-		if err != nil {
-			fmt.Printf("抓取期号 %s 失败: %v\n", period, err)
-			break
-		}
-
-		// 保存到数据库（如果数据库可用）
-		if c.db != nil {
-			if err := c.SaveDrawResult(result); err != nil {
-				fmt.Printf("保存期号 %s 到数据库失败: %v\n", period, err)
-				failCount++
-				continue
-			}
-		} else {
-			fmt.Printf("数据库未连接，跳过保存期号 %s\n", period)
-		}
-
-		successCount++
-		fmt.Printf("期号 %s 抓取成功\n", period)
-
-		// 添加延迟避免请求过于频繁
-		time.Sleep(500 * time.Millisecond)
-	}
-
-	fmt.Printf("历史数据抓取完成! 成功: %d, 失败: %d\n", successCount, failCount)
-	return nil
-}
-
-// generatePeriodList 生成期号列表
-func (c *CrawlerService) generatePeriodList(gameCode string, startDate, endDate time.Time) ([]string, error) {
-	var periods []string
-
-	if gameCode == "ssq" {
-		// 双色球：每周二、四、日开奖
-		current := startDate
-		for current.Before(endDate) || current.Equal(endDate) {
-			weekday := current.Weekday()
-			if weekday == time.Tuesday || weekday == time.Thursday || weekday == time.Sunday {
-				// 生成期号格式：202501001 (年+期数)
-				year := current.Year()
-				periodNum := c.getSSQPeriodNumber(current)
-				period := fmt.Sprintf("%d%03d", year, periodNum)
-				periods = append(periods, period)
-			}
-			current = current.AddDate(0, 0, 1)
-		}
-	} else if gameCode == "dlt" {
-		// 大乐透：每周一、三、六开奖
-		current := startDate
-		for current.Before(endDate) || current.Equal(endDate) {
-			weekday := current.Weekday()
-			if weekday == time.Monday || weekday == time.Wednesday || weekday == time.Saturday {
-				// 生成期号格式：202501001 (年+期数)
-				year := current.Year()
-				periodNum := c.getDLTPeriodNumber(current)
-				period := fmt.Sprintf("%d%03d", year, periodNum)
-				periods = append(periods, period)
-			}
-			current = current.AddDate(0, 0, 1)
-		}
-	} else {
-		return nil, fmt.Errorf("不支持的游戏类型: %s", gameCode)
-	}
-
-	return periods, nil
-}
-
-// getSSQPeriodNumber 获取双色球期号
-func (c *CrawlerService) getSSQPeriodNumber(date time.Time) int {
-	// 双色球从2003年开始，每年大约156期
-	year := date.Year()
-	if year < 2003 {
-		return 1
-	}
-
-	// 计算从年初到当前日期的期数
-	yearStart := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
-	days := int(date.Sub(yearStart).Hours() / 24)
-
-	// 每周3期，每年大约156期
-	periods := (days / 7) * 3
-
-	// 调整当前周的期数
-	weekday := date.Weekday()
-	if weekday == time.Tuesday {
-		periods += 1
-	} else if weekday == time.Thursday {
-		periods += 2
-	} else if weekday == time.Sunday {
-		periods += 3
-	}
-
-	return periods
-}
-
-// getDLTPeriodNumber 获取大乐透期号
-func (c *CrawlerService) getDLTPeriodNumber(date time.Time) int {
-	// 大乐透从2007年开始，每年大约156期
-	year := date.Year()
-	if year < 2007 {
-		return 1
-	}
-
-	// 计算从年初到当前日期的期数
-	yearStart := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
-	days := int(date.Sub(yearStart).Hours() / 24)
-
-	// 每周3期，每年大约156期
-	periods := (days / 7) * 3
-
-	// 调整当前周的期数
-	weekday := date.Weekday()
-	if weekday == time.Monday {
-		periods += 1
-	} else if weekday == time.Wednesday {
-		periods += 2
-	} else if weekday == time.Saturday {
-		periods += 3
-	}
-
-	return periods
 }
 
 // checkPeriodExists 检查期号是否已存在

@@ -41,7 +41,7 @@ func main() {
 
 	case "history":
 		fmt.Printf("抓取 %s 过去 %d 年的历史数据...\n", *gameCode, *pages)
-		err := crawler.CrawlHistoryData(*gameCode, *pages)
+		err := crawler.CrawlHistoryByPeriod(*gameCode, *pages)
 		if err != nil {
 			log.Fatalf("历史数据抓取失败: %v", err)
 		}
