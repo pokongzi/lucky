@@ -14,6 +14,8 @@ type DLTHistoryItem struct {
 	LotteryDrawNum    string `json:"lotteryDrawNum"`    // 期号
 	LotteryDrawTime   string `json:"lotteryDrawTime"`   // 开奖日期
 	LotteryDrawResult string `json:"lotteryDrawResult"` // 开奖结果，格式：01,11,14,25,27+04,10
+	RedBalls          string `json:"redBalls"`          // 红球号码，格式：01,11,14,25,27
+	BlueBalls         string `json:"blueBalls"`         // 蓝球号码，格式：04,10
 }
 
 // DLTHistoryResp 大乐透历史数据响应

@@ -41,8 +41,8 @@ func TestGetDLTHistory_Success(t *testing.T) {
 		if i >= 3 { // 只打印前3条
 			break
 		}
-		t.Logf("Record %d - DrawNum: %s, DrawTime: %s, DrawResult: %s",
-			i+1, item.LotteryDrawNum, item.LotteryDrawTime, item.LotteryDrawResult)
+		t.Logf("Record %d - DrawNum: %s, DrawTime: %s, DrawResult: %s, RedBalls: %s, BlueBalls: %s",
+			i+1, item.LotteryDrawNum, item.LotteryDrawTime, item.LotteryDrawResult, item.RedBalls, item.BlueBalls)
 	}
 
 	// 打印完整响应的JSON格式（用于调试）
