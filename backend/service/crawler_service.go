@@ -1232,7 +1232,7 @@ func (c *CrawlerService) CrawlHistoryResults(gameCode string, periods []string) 
 // CrawlHistoryByPeriod 抓取历史数据
 func (c *CrawlerService) CrawlHistoryByPeriod(gameCode string, pages int) error {
 	fmt.Printf("开始抓取 %s 历史数据，页数：%d\n", gameCode, pages)
-	
+
 	switch gameCode {
 	case "ssq":
 		return c.crawlSSQHistoryByPages(pages)
@@ -1285,10 +1285,19 @@ func (c *CrawlerService) crawlSSQHistoryByPages(pages int) error {
 
 		// 处理本页数据
 		for _, item := range apiResult.Result {
+			drawDate := strings.Split(item.Date, "(")[0] // "2025-09-28(日)" -> "2025-09-28"
+
+			// 解析日期
+			parsedDate, err := time.Parse("2006-01-02", drawDate)
+			if err != nil {
+				fmt.Printf("期号 %s 日期解析失败: %v, 使用当前日期\n", item.Code, err)
+				parsedDate = time.Now()
+			}
+			fmt.Println(item.Code)
 			result := &DrawResult{
 				GameCode: "ssq",
 				Period:   item.Code,
-				DrawDate: item.Date,
+				DrawDate: parsedDate.Format("2006-01-02"),
 			}
 
 			// 解析红球
@@ -1386,9 +1395,16 @@ func (c *CrawlerService) crawlDLTHistoryByPages(pages int) error {
 
 		// 处理本页数据
 		for _, item := range apiResult.Value.List {
+			period := item.LotteryDrawNum
+			if len(period) == 5 {
+				period = "20" + period // 25109 -> 2025109
+			} else if len(period) != 7 {
+				fmt.Printf("期号格式错误: %s, 跳过此期\n", period)
+				continue
+			}
 			result := &DrawResult{
 				GameCode: "dlt",
-				Period:   item.LotteryDrawNum,
+				Period:   period,
 				DrawDate: item.LotteryDrawTime,
 			}
 
