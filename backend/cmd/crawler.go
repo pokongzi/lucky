@@ -13,7 +13,7 @@ func main() {
 	var (
 		gameCode = flag.String("game", "ssq", "游戏代码 (ssq/dlt)")
 		action   = flag.String("action", "test", "操作类型 (test/crawl/mock/testcwl/testdlt/test500dlt/history)")
-		pages    = flag.Int("pages", 1, "抓取历史数据d的页数")
+		pages    = flag.Int("pages", 1, "抓取历史数据的页数")
 	)
 	flag.Parse()
 
@@ -40,7 +40,7 @@ func main() {
 		fmt.Println("抓取保存成功!")
 
 	case "history":
-		fmt.Printf("抓取 %s 过去 %d 年的历史数据...\n", *gameCode, *pages)
+		fmt.Printf("抓取 %s 历史数据，页数：%d...\n", *gameCode, *pages)
 		err := crawler.CrawlHistoryByPeriod(*gameCode, *pages)
 		if err != nil {
 			log.Fatalf("历史数据抓取失败: %v", err)

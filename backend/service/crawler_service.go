@@ -1210,7 +1210,8 @@ func (c *CrawlerService) CrawlAndSaveLatest(gameCode string) error {
 // CrawlHistoryResults 抓取历史开奖结果
 func (c *CrawlerService) CrawlHistoryResults(gameCode string, periods []string) error {
 	for _, period := range periods {
-		result, err := c.CrawlHistoryByPeriod(gameCode, period)
+		// 调用单期抓取方法
+		result, err := c.crawlSinglePeriod(gameCode, period)
 		if err != nil {
 			fmt.Printf("抓取期号 %s 失败: %v\n", period, err)
 			continue
@@ -1228,11 +1229,234 @@ func (c *CrawlerService) CrawlHistoryResults(gameCode string, periods []string) 
 	return nil
 }
 
-// crawlHistoryByPeriod 根据期号抓取历史数据
-func (c *CrawlerService) CrawlHistoryByPeriod(gameCode, period string) (*DrawResult, error) {
-	// 这里可以实现具体的历史数据抓取逻辑
-	// 不同网站的历史数据接口可能不同
-	return nil, fmt.Errorf("历史数据抓取功能待实现")
+// CrawlHistoryByPeriod 抓取历史数据
+func (c *CrawlerService) CrawlHistoryByPeriod(gameCode string, pages int) error {
+	fmt.Printf("开始抓取 %s 历史数据，页数：%d\n", gameCode, pages)
+	
+	switch gameCode {
+	case "ssq":
+		return c.crawlSSQHistoryByPages(pages)
+	case "dlt":
+		return c.crawlDLTHistoryByPages(pages)
+	default:
+		return fmt.Errorf("不支持的游戏类型: %s", gameCode)
+	}
+}
+
+// crawlSSQHistoryByPages 从中国福彩API批量抓取双色球历史数据（按页数）
+func (c *CrawlerService) crawlSSQHistoryByPages(pages int) error {
+	fmt.Println("开始从中国福彩API批量抓取双色球历史数据...")
+
+	var savedCount int
+	maxPages := pages // 根据传入的页数参数确定抓取页数
+	if maxPages <= 0 {
+		maxPages = 1 // 至少抓取1页
+	}
+
+	for page := 1; page <= maxPages; page++ {
+		fmt.Printf("正在抓取第 %d 页数据...\n", page)
+
+		// 使用 fucai 包构建请求
+		req := fucai.SSQHistoryReq{
+			Name:       "ssq", // 双色球
+			IssueCount: "",    // 期数
+			IssueStart: "",    // 开始期号
+			IssueEnd:   "",    // 结束期号
+			DayStart:   "",    // 开始日期
+			DayEnd:     "",    // 结束日期
+			PageNo:     page,  // 页码
+			PageSize:   30,    // 每页30条数据
+			Week:       "",    // 周
+			SystemType: "PC",  // PC系统
+		}
+
+		// 调用 fucai 包获取数据
+		apiResult, err := fucai.FucaiHandlerInst.GetSSQHistory(req)
+		if err != nil {
+			fmt.Printf("调用福彩API失败: %v，尝试下一页\n", err)
+			continue
+		}
+
+		// 如果没有更多数据，退出循环
+		if len(apiResult.Result) == 0 {
+			fmt.Println("没有更多数据，结束抓取")
+			break
+		}
+
+		// 处理本页数据
+		for _, item := range apiResult.Result {
+			result := &DrawResult{
+				GameCode: "ssq",
+				Period:   item.Code,
+				DrawDate: item.Date,
+			}
+
+			// 解析红球
+			redStrs := strings.Split(item.Red, ",")
+			for _, s := range redStrs {
+				num, err := strconv.Atoi(s)
+				if err != nil {
+					fmt.Printf("解析红球号码失败: %v, 跳过此期\n", err)
+					continue
+				}
+				result.RedBalls = append(result.RedBalls, num)
+			}
+
+			// 解析蓝球
+			blueNum, err := strconv.Atoi(item.Blue)
+			if err != nil {
+				fmt.Printf("解析蓝球号码失败: %v, 跳过此期\n", err)
+				continue
+			}
+			result.BlueBalls = []int{blueNum}
+
+			// 验证结果
+			if len(result.RedBalls) != 6 || len(result.BlueBalls) != 1 {
+				fmt.Printf("期号 %s 球号数量错误，红球: %d, 蓝球: %d, 跳过此期\n",
+					result.Period, len(result.RedBalls), len(result.BlueBalls))
+				continue
+			}
+
+			// 检查是否已存在
+			exists, err := c.checkPeriodExists("ssq", result.Period)
+			if err != nil {
+				fmt.Printf("检查期号 %s 是否存在失败: %v\n", result.Period, err)
+				continue
+			}
+			if exists {
+				fmt.Printf("期号 %s 已存在，跳过\n", result.Period)
+				continue
+			}
+
+			// 保存到数据库
+			err = c.SaveDrawResult(result)
+			if err != nil {
+				fmt.Printf("保存期号 %s 失败: %v\n", result.Period, err)
+				continue
+			}
+
+			savedCount++
+			fmt.Printf("成功保存期号 %s\n", result.Period)
+		}
+
+		fmt.Printf("第 %d 页数据抓取完成，本页获取 %d 条记录\n", page, len(apiResult.Result))
+
+		// 添加延迟避免请求过于频繁
+		time.Sleep(1 * time.Second)
+	}
+
+	fmt.Printf("双色球历史数据抓取完成，共保存 %d 条记录\n", savedCount)
+	return nil
+}
+
+// crawlDLTHistoryByPages 从体彩API批量抓取大乐透历史数据（按页数）
+func (c *CrawlerService) crawlDLTHistoryByPages(pages int) error {
+	fmt.Println("开始从体彩API批量抓取大乐透历史数据...")
+
+	var savedCount int
+	maxPages := pages // 根据传入的页数参数确定抓取页数
+	if maxPages <= 0 {
+		maxPages = 1 // 至少抓取1页
+	}
+
+	for page := 1; page <= maxPages; page++ {
+		fmt.Printf("正在抓取第 %d 页数据...\n", page)
+
+		// 使用 ticai 包构建请求
+		req := ticai.DLTHistoryReq{
+			GameNo:     "85", // 大乐透游戏编号
+			ProvinceId: "0",  // 全国
+			PageSize:   30,   // 每页30条数据
+			PageNo:     page, // 页码
+			IsVerify:   1,    // 验证
+		}
+
+		// 调用 ticai 包获取数据
+		apiResult, err := ticai.TicaiHandlerInst.GetDLTHistory(req)
+		if err != nil {
+			fmt.Printf("调用体彩API失败: %v，尝试下一页\n", err)
+			continue
+		}
+
+		// 如果没有更多数据，退出循环
+		if len(apiResult.Value.List) == 0 {
+			fmt.Println("没有更多数据，结束抓取")
+			break
+		}
+
+		// 处理本页数据
+		for _, item := range apiResult.Value.List {
+			result := &DrawResult{
+				GameCode: "dlt",
+				Period:   item.LotteryDrawNum,
+				DrawDate: item.LotteryDrawTime,
+			}
+
+			// 解析开奖结果，格式如："01 11 14 25 27 04 10"
+			parts := strings.Split(item.LotteryDrawResult, " ")
+			if len(parts) < 7 {
+				fmt.Printf("期号 %s 开奖结果格式错误: %s, 跳过此期\n",
+					result.Period, item.LotteryDrawResult)
+				continue
+			}
+
+			// 解析前区号码（红球）
+			for i := 0; i < 5; i++ {
+				num, err := strconv.Atoi(parts[i])
+				if err != nil {
+					fmt.Printf("解析前区号码失败: %v, 跳过此期\n", err)
+					continue
+				}
+				result.RedBalls = append(result.RedBalls, num)
+			}
+
+			// 解析后区号码（蓝球）
+			for i := 5; i < 7; i++ {
+				num, err := strconv.Atoi(parts[i])
+				if err != nil {
+					fmt.Printf("解析后区号码失败: %v, 跳过此期\n", err)
+					continue
+				}
+				result.BlueBalls = append(result.BlueBalls, num)
+			}
+
+			// 验证结果
+			if len(result.RedBalls) != 5 || len(result.BlueBalls) != 2 {
+				fmt.Printf("期号 %s 球号数量错误，前区: %d, 后区: %d, 跳过此期\n",
+					result.Period, len(result.RedBalls), len(result.BlueBalls))
+				continue
+			}
+
+			// 检查是否已存在
+			exists, err := c.checkPeriodExists("dlt", result.Period)
+			if err != nil {
+				fmt.Printf("检查期号 %s 是否存在失败: %v\n", result.Period, err)
+				continue
+			}
+			if exists {
+				fmt.Printf("期号 %s 已存在，跳过\n", result.Period)
+				continue
+			}
+
+			// 保存到数据库
+			err = c.SaveDrawResult(result)
+			if err != nil {
+				fmt.Printf("保存期号 %s 失败: %v\n", result.Period, err)
+				continue
+			}
+
+			savedCount++
+			fmt.Printf("成功保存期号 %s\n", result.Period)
+		}
+
+		fmt.Printf("第 %d 页数据抓取完成，本页获取 %d 条记录\n", page, len(apiResult.Value.List))
+
+		// 添加延迟避免请求过于频繁
+		time.Sleep(1 * time.Second)
+	}
+
+	fmt.Printf("大乐透历史数据抓取完成，共保存 %d 条记录\n", savedCount)
+	return nil
 }
 
 // ScheduleCrawl 定时抓取任务
