@@ -400,6 +400,19 @@
   font-weight: bold;
   margin-bottom: 10rpx;
   color: #333;
+  position: relative;
+  padding-bottom: 15rpx;
+}
+
+.chart-title::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 60rpx;
+  height: 4rpx;
+  background: linear-gradient(90deg, #007bff, #0056b3);
+  border-radius: 2rpx;
 }
 
 .chart-placeholder {
@@ -411,4 +424,64 @@
   justify-content: center;
   color: #6c757d;
   font-size: 24rpx;
+}
+
+/* 饼图容器样式 */
+.chart-container {
+  display: flex;
+  flex-direction: column;
+  gap: 30rpx;
+  margin-bottom: 30rpx;
+}
+
+.chart-container:last-child {
+  margin-bottom: 0;
+}
+
+.chart-container-horizontal {
+  display: flex;
+  justify-content: space-around;
+  gap: 20rpx;
+  flex-wrap: nowrap;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.chart-container-horizontal::-webkit-scrollbar {
+  display: none;
+}
+
+.chart-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 20rpx;
+}
+
+.chart-item-small {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 150px;
+}
+
+.chart-subtitle {
+  font-size: 24rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 15rpx;
+  text-align: center;
+}
+
+/* 饼图Canvas样式 */
+.ratio-chart {
+  border-radius: 8rpx;
+  background: #f8fafc;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.05);
+  transition: all 0.3s;
+}
+
+.ratio-chart:hover {
+  box-shadow: 0 4rpx 15rpx rgba(0, 0, 0, 0.1);
+  transform: translateY(-2rpx);
 }

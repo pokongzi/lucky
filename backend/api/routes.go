@@ -54,11 +54,13 @@ func RegisterNumberRoutes(r *gin.Engine) {
 
 // RegisterResultRoutes 注册开奖结果相关路由
 func RegisterResultRoutes(r *gin.Engine) {
+
+	// 创建路由组并注册其他开奖结果路由
 	resultGroup := r.Group("/api/results")
 	{
+		resultGroup.GET("/distribution/:gameCode", GetNumberDistribution)
 		resultGroup.GET("/:gameCode", GetDrawResults)
-	resultGroup.GET("/:gameCode/:period", GetDrawResultDetail)
-	resultGroup.GET("/:gameCode/distribution", GetNumberDistribution)
+		resultGroup.GET("/:gameCode/:period", GetDrawResultDetail) // 通配符路由放在最后
 	}
 }
 

@@ -62,13 +62,48 @@
     <view class="chart-section">
       <view class="chart-title">号码频率统计</view>
       <view class="chart-description">展示每个号码在选定周期内的出现次数</view>
-      <view class="chart-placeholder">图表展示区域</view>
+      <view class="chart-container">
+        <view class="chart-item">
+          <view class="chart-subtitle">红球频率分布</view>
+          <canvas canvas-id="redFrequencyChart" class="frequency-chart" style="width: 300px; height: 200px;"></canvas>
+        </view>
+        <view class="chart-item">
+          <view class="chart-subtitle">蓝球频率分布</view>
+          <canvas canvas-id="blueFrequencyChart" class="frequency-chart" style="width: 300px; height: 200px;"></canvas>
+        </view>
+      </view>
     </view>
     
+    <!-- 奇偶比统计 -->
     <view class="chart-section">
-      <view class="chart-title">奇偶比、大小比、和值分布</view>
-      <view class="chart-description">以折线图或饼图展示近期走势</view>
-      <view class="chart-placeholder">图表展示区域</view>
+      <view class="chart-title">奇偶比统计</view>
+      <view class="chart-description">以饼图展示选定周期内的号码奇偶分布情况</view>
+      <view class="chart-container-horizontal">
+        <view class="chart-item-small">
+          <view class="chart-subtitle">红球奇偶比</view>
+          <canvas canvas-id="redOddEvenChart" class="ratio-chart" style="width: 150px; height: 150px;"></canvas>
+        </view>
+        <view class="chart-item-small">
+          <view class="chart-subtitle">蓝球奇偶比</view>
+          <canvas canvas-id="blueOddEvenChart" class="ratio-chart" style="width: 150px; height: 150px;"></canvas>
+        </view>
+      </view>
+    </view>
+    
+    <!-- 大小比统计 -->
+    <view class="chart-section">
+      <view class="chart-title">大小比统计</view>
+      <view class="chart-description">以饼图展示选定周期内的号码大小分布情况</view>
+      <view class="chart-container-horizontal">
+        <view class="chart-item-small">
+          <view class="chart-subtitle">红球大小比</view>
+          <canvas canvas-id="redBigSmallChart" class="ratio-chart" style="width: 150px; height: 150px;"></canvas>
+        </view>
+        <view class="chart-item-small">
+          <view class="chart-subtitle">蓝球大小比</view>
+          <canvas canvas-id="blueBigSmallChart" class="ratio-chart" style="width: 150px; height: 150px;"></canvas>
+        </view>
+      </view>
     </view>
   </view>
 
@@ -82,13 +117,11 @@
           <text class="header-cell sortable" data-column="number" bindtap="sortMissingData">号码</text>
           <text class="header-cell sortable" data-column="currentMissing" bindtap="sortMissingData">当前遗漏</text>
           <text class="header-cell sortable" data-column="maxMissing" bindtap="sortMissingData">最大遗漏</text>
-          <text class="header-cell sortable" data-column="count" bindtap="sortMissingData">出现次数</text>
         </view>
         <view class="table-row" wx:for="{{redMissing}}" wx:key="number">
           <text class="table-cell">{{item.number}}</text>
           <text class="table-cell">{{item.currentMissing}}</text>
           <text class="table-cell">{{item.maxMissing}}</text>
-          <text class="table-cell">{{item.count}}</text>
         </view>
       </view>
     </view>
@@ -101,13 +134,11 @@
           <text class="header-cell sortable" data-column="number" bindtap="sortMissingData">号码</text>
           <text class="header-cell sortable" data-column="currentMissing" bindtap="sortMissingData">当前遗漏</text>
           <text class="header-cell sortable" data-column="maxMissing" bindtap="sortMissingData">最大遗漏</text>
-          <text class="header-cell sortable" data-column="count" bindtap="sortMissingData">出现次数</text>
         </view>
         <view class="table-row" wx:for="{{blueMissing}}" wx:key="number">
           <text class="table-cell">{{item.number}}</text>
           <text class="table-cell">{{item.currentMissing}}</text>
           <text class="table-cell">{{item.maxMissing}}</text>
-          <text class="table-cell">{{item.count}}</text>
         </view>
       </view>
     </view>

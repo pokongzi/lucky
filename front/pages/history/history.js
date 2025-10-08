@@ -9,6 +9,13 @@ Page({
     maxFrequency: 1,
     redMissing: [],
     blueMissing: [],
+    redFrequencyData: [],
+    blueFrequencyData: [],
+    // 奇偶比和大小比数据
+    redOddEvenRatio: { odd: 0, even: 0 },
+    redBigSmallRatio: { big: 0, small: 0 },
+    blueOddEvenRatio: { odd: 0, even: 0 },
+    blueBigSmallRatio: { big: 0, small: 0 },
     // 分页相关状态
     pageNum: 1,
     pageSize: 10,
@@ -35,12 +42,27 @@ Page({
     this.loadMissing();
   },
   
-  // 切换Tab
+  // 切换标签页
   switchTab: function(e) {
     const tab = e.currentTarget.dataset.tab;
     this.setData({
       currentTab: tab
     });
+    
+    // 切换到号码分布标签时绘制频率图表和饼图
+    if (tab === 'distribution') {
+      // 延迟一点时间再绘制，确保DOM已经更新
+      setTimeout(() => {
+        this.drawFrequencyChart('redFrequencyChart', this.data.redFrequencyData, true);
+        this.drawFrequencyChart('blueFrequencyChart', this.data.blueFrequencyData, false);
+        
+        // 绘制奇偶比和大小比饼图
+        this.drawPieChart('redOddEvenChart', this.data.redOddEvenRatio, ['奇数', '偶数'], ['#e23e3e', '#3182ce']);
+        this.drawPieChart('redBigSmallChart', this.data.redBigSmallRatio, ['大数', '小数'], ['#e23e3e', '#3182ce']);
+        this.drawPieChart('blueOddEvenChart', this.data.blueOddEvenRatio, ['奇数', '偶数'], ['#3182ce', '#e23e3e']);
+        this.drawPieChart('blueBigSmallChart', this.data.blueBigSmallRatio, ['大数', '小数'], ['#3182ce', '#e23e3e']);
+      }, 100);
+    }
   },
   
   // 设置期数筛选
@@ -182,12 +204,14 @@ Page({
     const gameCode = this.data.currentGame;
     const periodCount = this.data.periodFilter;
     
-    console.log('开始加载号码分布数据，游戏代码:', gameCode, '期数:', periodCount, 'API URL:', `${baseUrl}/api/results/${gameCode}/distribution?periodCount=${periodCount}`);
+    // 用户指定的接口URL格式
+    const targetUrl = `http://47.121.26.190:8080/api/results/distribution/${gameCode}?periodCount=${periodCount}`;
+    console.log('开始加载号码分布数据，游戏代码:', gameCode, '期数:', periodCount, '使用指定接口URL:', targetUrl);
     
     wx.showLoading({ title: '加载中' });
     
     wx.request({
-      url: `${baseUrl}/api/results/${gameCode}/distribution?periodCount=${periodCount}`,
+      url: targetUrl, // 使用用户指定的接口URL
       method: 'GET',
       success: (res) => {
         try {
@@ -233,11 +257,72 @@ Page({
               frequency: item.frequency
             }));
             
+            // 计算奇偶比和大小比
+            const isSSQ = gameCode === 'ssq';
+            const redBigThreshold = isSSQ ? 17 : 18;
+            const blueBigThreshold = isSSQ ? 8 : 6;
+            
+            // 计算红球奇偶比和大小比
+            let redOdd = 0, redEven = 0, redBig = 0, redSmall = 0;
+            redHeatmap.forEach(item => {
+              const number = item.number;
+              const frequency = item.frequency;
+              
+              // 奇偶统计（按出现次数加权）
+              if (number % 2 === 1) {
+                redOdd += frequency;
+              } else {
+                redEven += frequency;
+              }
+              
+              // 大小统计（按出现次数加权）
+              if (number > redBigThreshold) {
+                redBig += frequency;
+              } else {
+                redSmall += frequency;
+              }
+            });
+            
+            // 计算蓝球奇偶比和大小比
+            let blueOdd = 0, blueEven = 0, blueBig = 0, blueSmall = 0;
+            blueHeatmap.forEach(item => {
+              const number = item.number;
+              const frequency = item.frequency;
+              
+              // 奇偶统计（按出现次数加权）
+              if (number % 2 === 1) {
+                blueOdd += frequency;
+              } else {
+                blueEven += frequency;
+              }
+              
+              // 大小统计（按出现次数加权）
+              if (number > blueBigThreshold) {
+                blueBig += frequency;
+              } else {
+                blueSmall += frequency;
+              }
+            });
+            
             this.setData({
               redHeatmap: redHeatmap,
               blueHeatmap: blueHeatmap,
-              maxFrequency: maxFreq || 1
+              redFrequencyData: redHeatmap,
+              blueFrequencyData: blueHeatmap,
+              maxFrequency: maxFreq || 1,
+              redOddEvenRatio: { odd: redOdd, even: redEven },
+              redBigSmallRatio: { big: redBig, small: redSmall },
+              blueOddEvenRatio: { odd: blueOdd, even: blueEven },
+              blueBigSmallRatio: { big: blueBig, small: blueSmall }
             });
+            
+            // 数据更新后绘制频率图表和饼图
+            this.drawFrequencyChart('redFrequencyChart', this.data.redFrequencyData, true);
+            this.drawFrequencyChart('blueFrequencyChart', this.data.blueFrequencyData, false);
+            this.drawPieChart('redOddEvenChart', this.data.redOddEvenRatio, ['奇数', '偶数'], ['#e23e3e', '#3182ce']);
+            this.drawPieChart('redBigSmallChart', this.data.redBigSmallRatio, ['大数', '小数'], ['#e23e3e', '#3182ce']);
+            this.drawPieChart('blueOddEvenChart', this.data.blueOddEvenRatio, ['奇数', '偶数'], ['#3182ce', '#e23e3e']);
+            this.drawPieChart('blueBigSmallChart', this.data.blueBigSmallRatio, ['大数', '小数'], ['#3182ce', '#e23e3e']);
           } else {
             console.error('获取号码分布数据失败: 响应数据格式不正确', responseData);
             this.generateMockHeatmapData(); // 失败时生成模拟数据
@@ -279,11 +364,245 @@ Page({
       maxFreq = Math.max(maxFreq, frequency);
     }
     
+    // 计算奇偶比和大小比
+    const isSSQ = this.data.currentGame === 'ssq';
+    const redBigThreshold = isSSQ ? 17 : 18;
+    const blueBigThreshold = isSSQ ? 8 : 6;
+    
+    // 计算红球奇偶比和大小比
+    let redOdd = 0, redEven = 0, redBig = 0, redSmall = 0;
+    redHeatmap.forEach(item => {
+      const number = item.number;
+      const frequency = item.frequency;
+      
+      // 奇偶统计（按出现次数加权）
+      if (number % 2 === 1) {
+        redOdd += frequency;
+      } else {
+        redEven += frequency;
+      }
+      
+      // 大小统计（按出现次数加权）
+      if (number > redBigThreshold) {
+        redBig += frequency;
+      } else {
+        redSmall += frequency;
+      }
+    });
+    
+    // 计算蓝球奇偶比和大小比
+    let blueOdd = 0, blueEven = 0, blueBig = 0, blueSmall = 0;
+    blueHeatmap.forEach(item => {
+      const number = item.number;
+      const frequency = item.frequency;
+      
+      // 奇偶统计（按出现次数加权）
+      if (number % 2 === 1) {
+        blueOdd += frequency;
+      } else {
+        blueEven += frequency;
+      }
+      
+      // 大小统计（按出现次数加权）
+      if (number > blueBigThreshold) {
+        blueBig += frequency;
+      } else {
+        blueSmall += frequency;
+      }
+    });
+    
     this.setData({
       redHeatmap: redHeatmap,
       blueHeatmap: blueHeatmap,
-      maxFrequency: maxFreq || 1
+      redFrequencyData: redHeatmap,
+      blueFrequencyData: blueHeatmap,
+      maxFrequency: maxFreq || 1,
+      redOddEvenRatio: { odd: redOdd, even: redEven },
+      redBigSmallRatio: { big: redBig, small: redSmall },
+      blueOddEvenRatio: { odd: blueOdd, even: blueEven },
+      blueBigSmallRatio: { big: blueBig, small: blueSmall }
     });
+    
+    // 生成模拟数据后绘制频率图表和饼图
+    setTimeout(() => {
+      this.drawFrequencyChart('redFrequencyChart', this.data.redFrequencyData, true);
+      this.drawFrequencyChart('blueFrequencyChart', this.data.blueFrequencyData, false);
+      this.drawPieChart('redOddEvenChart', this.data.redOddEvenRatio, ['奇数', '偶数'], ['#e23e3e', '#3182ce']);
+      this.drawPieChart('redBigSmallChart', this.data.redBigSmallRatio, ['大数', '小数'], ['#e23e3e', '#3182ce']);
+      this.drawPieChart('blueOddEvenChart', this.data.blueOddEvenRatio, ['奇数', '偶数'], ['#3182ce', '#e23e3e']);
+      this.drawPieChart('blueBigSmallChart', this.data.blueBigSmallRatio, ['大数', '小数'], ['#3182ce', '#e23e3e']);
+    }, 100);
+  },
+  
+  // 绘制号码频率统计柱状图
+  drawFrequencyChart: function(canvasId, data, isRed) {
+    const ctx = wx.createCanvasContext(canvasId);
+    const canvasWidth = 300; // 画布宽度
+    const canvasHeight = 200; // 画布高度
+    const padding = 20; // 边距
+    const barWidth = 8; // 柱状图宽度
+    const barGap = 4; // 柱状图间距
+    
+    // 清空画布
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    
+    // 计算图表区域大小
+    const chartWidth = canvasWidth - 2 * padding;
+    const chartHeight = canvasHeight - 40; // 预留底部空间显示号码
+    
+    // 找出数据中的最大值
+    let maxValue = 0;
+    data.forEach(item => {
+      if (item.frequency > maxValue) {
+        maxValue = item.frequency;
+      }
+    });
+    
+    if (maxValue === 0) maxValue = 1; // 避免除以0
+    
+    // 设置柱状图颜色
+    const barColor = isRed ? '#e23e3e' : '#3182ce';
+    
+    // 绘制柱状图
+    data.forEach((item, index) => {
+      // 计算柱子高度
+      const barHeight = (item.frequency / maxValue) * chartHeight;
+      const x = padding + index * (barWidth + barGap);
+      const y = canvasHeight - 30 - barHeight; // 减去底部空间
+      
+      // 绘制柱子
+      ctx.setFillStyle(barColor);
+      ctx.fillRect(x, y, barWidth, barHeight);
+      
+      // 绘制数值标签
+      ctx.setFillStyle('#2d3748');
+      ctx.setFontSize(10);
+      ctx.fillText(item.frequency.toString(), x - 2, y - 5);
+      
+      // 绘制号码标签（每5个号码显示一个，避免拥挤）
+      if (index % 5 === 0) {
+        ctx.setFillStyle('#718096');
+        ctx.setFontSize(9);
+        ctx.fillText(item.number.toString(), x - 3, canvasHeight - 15);
+      }
+    });
+    
+    // 绘制坐标轴
+    ctx.setStrokeStyle('#e2e8f0');
+    ctx.setLineWidth(1);
+    
+    // X轴
+    ctx.beginPath();
+    ctx.moveTo(padding, canvasHeight - 30);
+    ctx.lineTo(canvasWidth - padding, canvasHeight - 30);
+    ctx.stroke();
+    
+    // Y轴
+    ctx.beginPath();
+    ctx.moveTo(padding, padding);
+    ctx.lineTo(padding, canvasHeight - 30);
+    ctx.stroke();
+    
+    // 绘制最大值标签
+    ctx.setFillStyle('#718096');
+    ctx.setFontSize(10);
+    ctx.fillText(maxValue.toString(), 5, padding);
+    
+    // 绘制完成后绘制到画布上
+    ctx.draw();
+  },
+  
+  // 绘制饼图
+  drawPieChart: function(canvasId, data, labels, colors) {
+    const ctx = wx.createCanvasContext(canvasId);
+    // 直接使用canvas的指定尺寸，不通过selectorQuery获取
+    this._drawPieChartWithSize(ctx, 150, 150, data, labels, colors);
+  },
+  
+  // 内部方法：根据指定尺寸绘制饼图
+  _drawPieChartWithSize: function(ctx, canvasWidth, canvasHeight, data, labels, colors) {
+    const centerX = canvasWidth / 2;
+    const centerY = canvasHeight / 2;
+    const radius = Math.min(centerX, centerY) - 20; // 进一步增加边距，确保图例完全显示在饼图下方
+    
+    // 获取数据总和
+    const total = Object.values(data).reduce((sum, value) => sum + value, 0);
+    
+    // 如果没有数据，绘制一个灰色的饼图
+    if (total === 0) {
+      ctx.setFillStyle('#e2e8f0');
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+      ctx.fill();
+      
+      // 绘制提示文字
+      ctx.setFillStyle('#718096');
+      ctx.setFontSize(12);
+      ctx.setTextAlign('center');
+      ctx.setTextBaseline('middle');
+      ctx.fillText('暂无数据', centerX, centerY);
+      ctx.draw();
+      return;
+    }
+    
+    let startAngle = 0;
+    const keys = Object.keys(data);
+    
+    // 绘制饼图各部分
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      const value = data[key];
+      const percentage = value / total;
+      const endAngle = startAngle + percentage * 2 * Math.PI;
+      
+      // 绘制扇形
+      ctx.setFillStyle(colors[i]);
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+      ctx.closePath();
+      ctx.fill();
+      
+      // 计算扇形中间角度，用于放置标签
+      const midAngle = startAngle + percentage * Math.PI;
+      const labelX = centerX + Math.cos(midAngle) * (radius * 0.6);
+      const labelY = centerY + Math.sin(midAngle) * (radius * 0.6);
+      
+      // 绘制百分比标签
+      ctx.setFillStyle('#fff');
+      ctx.setFontSize(12);
+      ctx.setTextAlign('center');
+      ctx.setTextBaseline('middle');
+      ctx.fillText(`${Math.round(percentage * 100)}%`, labelX, labelY);
+      
+      // 更新起始角度
+      startAngle = endAngle;
+    }
+    
+    // 绘制图例
+    const legendItemHeight = 12;
+    const legendStartY = canvasHeight - 20; // 进一步调整图例起始位置，确保与饼图完全分离
+    const legendItemWidth = 70;
+    
+    for (let i = 0; i < keys.length; i++) {
+      // 计算图例项的中心位置
+      const legendCenterX = centerX - (legendItemWidth * (keys.length - 1)) / 2 + i * legendItemWidth;
+      
+      // 绘制颜色块（位于中心偏左）
+      const colorBlockX = legendCenterX - 15;
+      ctx.setFillStyle(colors[i]);
+      ctx.fillRect(colorBlockX, legendStartY, 10, 10);
+      
+      // 绘制标签文字（视觉居中）
+      ctx.setFillStyle('#2d3748');
+      ctx.setFontSize(9);
+      ctx.setTextAlign('center'); // 设置文本居中对齐
+      ctx.setTextBaseline('middle');
+      ctx.fillText(`${labels[i]}`, legendCenterX + 10, legendStartY + 5);
+    }
+    
+    // 绘制完成后绘制到画布上
+    ctx.draw();
   },
   
   // 加载遗漏数据
