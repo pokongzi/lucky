@@ -53,9 +53,6 @@ type DrawResult struct {
 	SecondAmount int64       `gorm:"default:0;column:second_amount" json:"second_amount"`    // 二等奖单注奖金(分)
 	CreatedAt    time.Time   `gorm:"column:created_at" json:"created_at"`
 	UpdatedAt    time.Time   `gorm:"column:updated_at" json:"updated_at"`
-
-	// 关联
-	Game LotteryGame `gorm:"foreignKey:GameID;references:ID;constraint:OnDelete:CASCADE"`
 }
 
 func (DrawResult) TableName() string {

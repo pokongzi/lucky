@@ -57,34 +57,3 @@ func TestCrawlHandler(c *gin.Context) {
 		"data": result,
 	})
 }
-
-// MockDataHandler 生成模拟数据
-func MockDataHandler(c *gin.Context) {
-	gameCode := c.Param("gameCode")
-	period := c.Query("period")
-
-	if gameCode == "" {
-		gameCode = "ssq"
-	}
-	if period == "" {
-		period = "2025099"
-	}
-
-	crawler := service.NewCrawlerService()
-	result := crawler.MockDrawResult(gameCode, period)
-
-	err := crawler.SaveDrawResult(result)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code": 500,
-			"msg":  "保存失败: " + err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
-		"msg":  "模拟数据生成成功",
-		"data": result,
-	})
-}

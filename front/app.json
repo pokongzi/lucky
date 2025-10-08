@@ -11,9 +11,45 @@
     "navigationBarTextStyle": "black",
     "backgroundColor": "#f5f5f5"
   },
+  "tabBar": {
+    "color": "#666666",
+    "selectedColor": "#ff4757",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "号码生成",
+        "iconPath": "images/home.png",
+        "selectedIconPath": "images/home-active.png"
+      },
+      {
+        "pagePath": "pages/history/history",
+        "text": "历史开奖",
+        "iconPath": "images/history.png",
+        "selectedIconPath": "images/history-active.png"
+      },
+      {
+        "pagePath": "pages/mynumbers/mynumbers",
+        "text": "我的号码",
+        "iconPath": "images/numbers.png",
+        "selectedIconPath": "images/numbers-active.png"
+      }
+    ]
+  },
   "networkTimeout": {
     "request": 10000,
     "downloadFile": 10000
+  },
+  "permission": {
+    "scope.userLocation": {
+      "desc": "你的位置信息将用于小程序位置接口的效果展示"
+    }
+  },
+  "request": {
+    "domain": [
+      "47.121.26.190:8080"
+    ]
   },
   "debug": true,
   "sitemapLocation": "sitemap.json"

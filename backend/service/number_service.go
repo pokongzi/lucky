@@ -3,74 +3,29 @@ package service
 import (
 	"errors"
 	"fmt"
-	"math/rand"
-	"sort"
-	"time"
 
 	"lucky/model"
 
 	"gorm.io/gorm"
 )
 
-// RandomNumberResult 随机号码结果
-type RandomNumberResult struct {
-	RedBalls  model.NumberArray `json:"red_balls"`
-	BlueBalls model.NumberArray `json:"blue_balls"`
-}
-
-// GenerateRandomNumbers 生成随机号码
-func GenerateRandomNumbers(game *model.LotteryGame, count int) ([]RandomNumberResult, error) {
-	results := make([]RandomNumberResult, count)
-
-	for i := 0; i < count; i++ {
-		redBalls := generateRandomBalls(1, game.RedBallCount, game.RedSelectCount)
-		blueBalls := generateRandomBalls(1, game.BlueBallCount, game.BlueSelectCount)
-
-		results[i] = RandomNumberResult{
-			RedBalls:  redBalls,
-			BlueBalls: blueBalls,
-		}
-	}
-
-	return results, nil
-}
-
-// generateRandomBalls 生成随机球号
-func generateRandomBalls(min, max, count int) model.NumberArray {
-	rand.Seed(time.Now().UnixNano() + int64(rand.Intn(1000)))
-
-	balls := make([]int, 0, count)
-	usedNumbers := make(map[int]bool)
-
-	for len(balls) < count {
-		num := rand.Intn(max-min+1) + min
-		if !usedNumbers[num] {
-			balls = append(balls, num)
-			usedNumbers[num] = true
-		}
-	}
-
-	sort.Ints(balls)
-	return model.NumberArray(balls)
-}
-
 // ValidateNumbers 验证号码
 func ValidateNumbers(game *model.LotteryGame, redBalls, blueBalls model.NumberArray) error {
 	// 验证红球数量
 	if len(redBalls) != game.RedSelectCount {
-		return errors.New(fmt.Sprintf("红球数量不正确，需要%d个", game.RedSelectCount))
+		return fmt.Errorf("红球数量不正确，需要%d个", game.RedSelectCount)
 	}
 
 	// 验证蓝球数量
 	if len(blueBalls) != game.BlueSelectCount {
-		return errors.New(fmt.Sprintf("蓝球数量不正确，需要%d个", game.BlueSelectCount))
+		return fmt.Errorf("蓝球数量不正确，需要%d个", game.BlueSelectCount)
 	}
 
 	// 验证红球范围和唯一性
 	usedRed := make(map[int]bool)
 	for _, ball := range redBalls {
 		if ball < 1 || ball > game.RedBallCount {
-			return errors.New(fmt.Sprintf("红球号码超出范围(1-%d)", game.RedBallCount))
+			return fmt.Errorf("红球号码超出范围(1-%d)", game.RedBallCount)
 		}
 		if usedRed[ball] {
 			return errors.New("红球号码重复")
@@ -82,7 +37,7 @@ func ValidateNumbers(game *model.LotteryGame, redBalls, blueBalls model.NumberAr
 	usedBlue := make(map[int]bool)
 	for _, ball := range blueBalls {
 		if ball < 1 || ball > game.BlueBallCount {
-			return errors.New(fmt.Sprintf("蓝球号码超出范围(1-%d)", game.BlueBallCount))
+			return fmt.Errorf("蓝球号码超出范围(1-%d)", game.BlueBallCount)
 		}
 		if usedBlue[ball] {
 			return errors.New("蓝球号码重复")
@@ -91,6 +46,33 @@ func ValidateNumbers(game *model.LotteryGame, redBalls, blueBalls model.NumberAr
 	}
 
 	return nil
+}
+
+// compareNumberArrays 比较两个号码数组是否相同（忽略顺序）
+func compareNumberArrays(arr1, arr2 model.NumberArray) bool {
+	if len(arr1) != len(arr2) {
+		return false
+	}
+
+	// 创建映射来比较
+	map1 := make(map[int]int)
+	map2 := make(map[int]int)
+
+	for _, num := range arr1 {
+		map1[num]++
+	}
+	for _, num := range arr2 {
+		map2[num]++
+	}
+
+	// 比较映射
+	for num, count := range map1 {
+		if map2[num] != count {
+			return false
+		}
+	}
+
+	return true
 }
 
 // SaveUserNumber 保存用户号码
@@ -106,9 +88,25 @@ func SaveUserNumber(db *gorm.DB, userID uint64, gameID uint64, redBalls, blueBal
 		return nil, err
 	}
 
+	// 检查是否已存在相同的号码
+	var existingNumbers []model.UserNumber
+	err := db.Where("user_id = ? AND game_id = ?", int64(userID), uint64(gameID)).Find(&existingNumbers).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	// 手动比较号码数组
+	for _, existing := range existingNumbers {
+		if compareNumberArrays(existing.RedBalls, redBalls) && compareNumberArrays(existing.BlueBalls, blueBalls) {
+			// 找到相同的号码，返回现有记录
+			return &existing, nil
+		}
+	}
+
 	// 创建用户号码记录
 	userNumber := model.UserNumber{
-		UserID:    userID,
+		UserID:    int64(userID),
 		GameID:    uint64(gameID),
 		RedBalls:  redBalls,
 		BlueBalls: blueBalls,
@@ -139,7 +137,7 @@ func SaveUserNumbers(db *gorm.DB, userID uint64, gameID uint64, redBalls, blueBa
 
 	// 创建用户号码记录
 	userNumber := model.UserNumber{
-		UserID:    userID,
+		UserID:    int64(userID),
 		GameID:    uint64(gameID),
 		RedBalls:  redBalls,
 		BlueBalls: blueBalls,
@@ -187,7 +185,7 @@ func GetUserNumbers(db *gorm.DB, userID uint64, gameCode string, page, pageSize 
 	if gameCode != "" {
 		// 通过gameCode条件查询
 		query = query.Joins("JOIN lottery_games ON user_numbers.game_id = lottery_games.id").
-			Where("lottery_games.name = ?", gameCode)
+			Where("lottery_games.game_code = ?", gameCode)
 	}
 
 	// 获取总数
@@ -233,8 +231,12 @@ func CheckWinningNumbers(db *gorm.DB, userNumberID uint, drawResultID uint) (*mo
 	redMatches := countMatches(userNumber.RedBalls, drawResult.RedBalls)
 	blueMatches := countMatches(userNumber.BlueBalls, drawResult.BlueBalls)
 
-	// 判断奖级
-	prizeLevel := determinePrizeLevel(userNumber.Game.GameName, redMatches, blueMatches)
+	// 判断奖级（取消关联后，按 GameID 查询游戏信息获取名称）
+	var gameInfo model.LotteryGame
+	if err := db.First(&gameInfo, userNumber.GameID).Error; err != nil {
+		return nil, fmt.Errorf("游戏不存在")
+	}
+	prizeLevel := determinePrizeLevel(gameInfo.GameName, redMatches, blueMatches)
 
 	// 创建中奖记录
 	userDraw := &model.UserDraw{

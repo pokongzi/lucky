@@ -38,6 +38,7 @@ func main() {
 
 	// 注册路由
 	api.RegisterTestRoutes(r)
+	api.RegisterAuthRoutes(r)
 	api.RegisterUserRoutes(r)
 	api.RegisterGameRoutes(r)
 	api.RegisterNumberRoutes(r)

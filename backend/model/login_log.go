@@ -8,16 +8,13 @@ import (
 
 // LoginLog 登录日志表
 type LoginLog struct {
-	ID        uint64    `gorm:"primaryKey;column:id" json:"id"`
-	UserID    uint64    `gorm:"not null;index;column:user_id" json:"user_id"`     // 用户ID
+	ID        int64     `gorm:"primaryKey;column:id" json:"id"`
+	UserID    int64     `gorm:"not null;index;column:user_id" json:"user_id"`     // 用户ID
 	LoginIP   string    `gorm:"size:45;not null;column:login_ip" json:"login_ip"` // 登录IP
 	UserAgent string    `gorm:"size:255;column:user_agent" json:"user_agent"`     // 用户代理
 	Status    int       `gorm:"not null;default:1;column:status" json:"status"`   // 登录状态(1:成功 0:失败)
 	Message   string    `gorm:"size:255;column:message" json:"message"`           // 登录消息
 	CreatedAt time.Time `gorm:"column:created_at" json:"created_at"`
-
-	// 关联
-	User User `gorm:"foreignKey:UserID;references:ID;constraint:OnDelete:CASCADE"`
 }
 
 func (LoginLog) TableName() string {
@@ -39,7 +36,7 @@ func (dao *LoginLogDAO) Create(log *LoginLog) error {
 }
 
 // GetByID 根据ID获取登录日志
-func (dao *LoginLogDAO) GetByID(id uint64) (*LoginLog, error) {
+func (dao *LoginLogDAO) GetByID(id int64) (*LoginLog, error) {
 	var log LoginLog
 	err := dao.db.First(&log, id).Error
 	if err != nil {
@@ -49,7 +46,7 @@ func (dao *LoginLogDAO) GetByID(id uint64) (*LoginLog, error) {
 }
 
 // GetByUserID 根据用户ID获取登录日志列表
-func (dao *LoginLogDAO) GetByUserID(userID uint64, offset, limit int) ([]*LoginLog, error) {
+func (dao *LoginLogDAO) GetByUserID(userID int64, offset, limit int) ([]*LoginLog, error) {
 	var logs []*LoginLog
 	err := dao.db.Where("user_id = ?", userID).Offset(offset).Limit(limit).Order("created_at DESC").Find(&logs).Error
 	return logs, err
@@ -84,19 +81,19 @@ func (dao *LoginLogDAO) Count() (int64, error) {
 }
 
 // CountByUserID 根据用户ID获取登录日志总数
-func (dao *LoginLogDAO) CountByUserID(userID uint64) (int64, error) {
+func (dao *LoginLogDAO) CountByUserID(userID int64) (int64, error) {
 	var count int64
 	err := dao.db.Model(&LoginLog{}).Where("user_id = ?", userID).Count(&count).Error
 	return count, err
 }
 
 // Delete 删除登录日志
-func (dao *LoginLogDAO) Delete(id uint64) error {
+func (dao *LoginLogDAO) Delete(id int64) error {
 	return dao.db.Delete(&LoginLog{}, id).Error
 }
 
 // DeleteByUserID 根据用户ID删除登录日志
-func (dao *LoginLogDAO) DeleteByUserID(userID uint64) error {
+func (dao *LoginLogDAO) DeleteByUserID(userID int64) error {
 	return dao.db.Where("user_id = ?", userID).Delete(&LoginLog{}).Error
 }
 

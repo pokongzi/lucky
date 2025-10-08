@@ -4,37 +4,136 @@
   min-height: 100vh;
 }
 
-.header {
-  text-align: center;
-  margin-bottom: 40rpx;
+/* 游戏切换器样式 */
+.game-switcher {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 30rpx;
+  background: linear-gradient(135deg, #fff, #f8f9fa);
+  border-radius: 50rpx;
+  padding: 5rpx;
+  box-shadow: 0 4rpx 15rpx rgba(0, 0, 0, 0.08);
 }
 
-.title {
-  font-size: 36rpx;
-  font-weight: bold;
-  color: #333;
+.game-btn {
+  flex: 1;
+  padding: 20rpx 0;
+  margin: 0 5rpx;
+  border: none;
+  background: #f8f9fa;
+  border-radius: 50rpx;
+  font-size: 28rpx;
+  font-weight: 500;
+  color: #6c757d;
+  transition: all 0.3s;
+  box-shadow: 0 2rpx 5rpx rgba(0, 0, 0, 0.1);
 }
 
-.history-list {
-  background-color: #fff;
-  border-radius: 20rpx;
+.game-btn:first-child {
+  margin-left: 0;
+}
+
+.game-btn:last-child {
+  margin-right: 0;
+}
+
+.game-btn.active {
+  background: linear-gradient(135deg, #007bff, #0056b3);
+  color: #fff;
+  box-shadow: 0 4rpx 10rpx rgba(0, 123, 255, 0.3);
+  transform: translateY(-2rpx);
+}
+
+/* Tab栏样式 */
+.tab-bar {
+  display: flex;
+  background: linear-gradient(135deg, #fff, #f8f9fa);
+  border-radius: 15rpx;
   overflow: hidden;
+  margin-bottom: 30rpx;
+  box-shadow: 0 4rpx 15rpx rgba(0, 0, 0, 0.08);
 }
 
+.tab-item {
+  flex: 1;
+  text-align: center;
+  padding: 25rpx 0;
+  font-size: 26rpx;
+  color: #6c757d;
+  transition: all 0.3s;
+  position: relative;
+  font-weight: 500;
+}
+
+.tab-item.active {
+  background: linear-gradient(135deg, #007bff, #0056b3);
+  color: #fff;
+  font-weight: 500;
+}
+
+.tab-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60%;
+  height: 4rpx;
+  background: #fff;
+  border-radius: 2rpx;
+}
+
+/* 内容区域样式 */
+.content-section {
+  background: #fff;
+  border-radius: 10rpx;
+  padding: 30rpx;
+  margin-bottom: 30rpx;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.1);
+}
+
+/* 历史开奖列表样式 */
 .history-item {
   padding: 30rpx;
   border-bottom: 1rpx solid #eee;
+  transition: all 0.3s;
+  border-radius: 15rpx;
+  margin-bottom: 20rpx;
+  background: #fff;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.05);
+}
+
+.history-item:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.history-item:hover {
+  transform: translateY(-2rpx);
+  box-shadow: 0 4rpx 15rpx rgba(0, 0, 0, 0.1);
+}
+
+.period-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20rpx;
+  align-items: center;
 }
 
 .period {
   font-size: 28rpx;
   font-weight: bold;
   color: #333;
-  margin-bottom: 20rpx;
+}
+
+.date {
+  font-size: 24rpx;
+  color: #999;
 }
 
 .numbers {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   margin-bottom: 20rpx;
 }
@@ -47,20 +146,269 @@
   text-align: center;
   border-radius: 50%;
   margin-right: 10rpx;
+  margin-bottom: 10rpx;
   font-size: 22rpx;
   font-weight: bold;
   color: #fff;
+  box-shadow: 0 4rpx 8rpx rgba(0, 0, 0, 0.2);
+  transition: all 0.3s;
 }
 
 .number.red {
-  background-color: #ff4757;
+  background: linear-gradient(135deg, #ff4757, #ff6b81);
+  border: 2rpx solid #ff2e43;
 }
 
 .number.blue {
-  background-color: #3742fa;
+  background: linear-gradient(135deg, #3742fa, #5352ed);
+  border: 2rpx solid #2e38d9;
 }
 
-.date {
+.number:hover {
+  transform: scale(1.1);
+}
+
+.prize-info {
+  background: linear-gradient(135deg, #f8f9fa, #fff);
+  padding: 20rpx;
+  border-radius: 10rpx;
   font-size: 24rpx;
-  color: #999;
+  color: #6c757d;
+  margin-top: 10rpx;
+  box-shadow: 0 2rpx 5rpx rgba(0, 0, 0, 0.05);
+}
+
+/* 筛选按钮样式 */
+.filter-bar {
+  display: flex;
+  justify-content: center;
+  gap: 20rpx;
+  margin-bottom: 30rpx;
+}
+
+.filter-btn {
+  padding: 15rpx 25rpx;
+  border: 1rpx solid #007bff;
+  background: #fff;
+  border-radius: 50rpx;
+  font-size: 24rpx;
+  color: #007bff;
+  transition: all 0.3s;
+}
+
+.filter-btn.active {
+  background: #007bff;
+  color: #fff;
+}
+
+/* 热力图样式 */
+.heatmap-section {
+  margin-bottom: 40rpx;
+  background: #fff;
+  border-radius: 15rpx;
+  padding: 30rpx;
+  box-shadow: 0 4rpx 15rpx rgba(0, 0, 0, 0.08);
+}
+
+.heatmap-section:last-child {
+  margin-bottom: 0;
+}
+
+.heatmap-title {
+  font-size: 28rpx;
+  font-weight: bold;
+  margin-bottom: 20rpx;
+  color: #333;
+  position: relative;
+  padding-bottom: 15rpx;
+}
+
+.heatmap-title::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 60rpx;
+  height: 4rpx;
+  background: linear-gradient(90deg, #007bff, #0056b3);
+  border-radius: 2rpx;
+}
+
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(11, 1fr);
+  gap: 12rpx;
+}
+
+.heatmap-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 60rpx;
+  border-radius: 12rpx;
+  font-size: 24rpx;
+  font-weight: bold;
+  color: #fff;
+  transition: all 0.3s;
+  box-shadow: 0 4rpx 8rpx rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.heatmap-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0));
+  z-index: 0;
+}
+
+.heatmap-item .number-text {
+  position: relative;
+  z-index: 1;
+}
+
+.heatmap-item:hover {
+  transform: translateY(-2rpx);
+  box-shadow: 0 6rpx 12rpx rgba(0, 0, 0, 0.15);
+}
+
+/* 数据遗漏表格样式 */
+.missing-section {
+  margin-bottom: 40rpx;
+  background: #fff;
+  border-radius: 15rpx;
+  padding: 30rpx;
+  box-shadow: 0 4rpx 15rpx rgba(0, 0, 0, 0.08);
+}
+
+.missing-section:last-child {
+  margin-bottom: 0;
+}
+
+.missing-title {
+  font-size: 28rpx;
+  font-weight: bold;
+  margin-bottom: 10rpx;
+  color: #333;
+  position: relative;
+  padding-bottom: 15rpx;
+}
+
+.missing-title::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 60rpx;
+  height: 4rpx;
+  background: linear-gradient(90deg, #007bff, #0056b3);
+  border-radius: 2rpx;
+}
+
+.missing-description {
+  font-size: 24rpx;
+  color: #6c757d;
+  margin-bottom: 20rpx;
+  line-height: 1.6;
+}
+
+.missing-table {
+  width: 100%;
+  border-radius: 12rpx;
+  overflow: hidden;
+  box-shadow: 0 4rpx 15rpx rgba(0, 0, 0, 0.08);
+}
+
+.table-header {
+  display: flex;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  padding: 25rpx 0;
+  font-weight: bold;
+  border-bottom: 2rpx solid #dee2e6;
+}
+
+.table-row {
+  display: flex;
+  padding: 25rpx 0;
+  border-bottom: 1rpx solid #e9ecef;
+  transition: all 0.3s;
+}
+
+.table-row:last-child {
+  border-bottom: none;
+}
+
+.table-row:hover {
+  background: linear-gradient(135deg, #f8f9fa, #fff);
+  transform: translateY(-1rpx);
+}
+
+.header-cell, .table-cell {
+  flex: 1;
+  text-align: center;
+  font-size: 24rpx;
+}
+
+.header-cell {
+  color: #495057;
+  position: relative;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.header-cell.sortable::after {
+  content: "↕";
+  position: absolute;
+  right: 10rpx;
+  font-size: 20rpx;
+  opacity: 0.5;
+  transition: all 0.3s;
+}
+
+.header-cell.sortable:hover::after {
+  opacity: 1;
+  color: #007bff;
+}
+
+.table-cell {
+  color: #333;
+  font-weight: 500;
+}
+
+/* 号码分布描述样式 */
+.heatmap-description, .chart-description {
+  font-size: 24rpx;
+  color: #6c757d;
+  margin-bottom: 20rpx;
+}
+
+/* 图表部分样式 */
+.chart-section {
+  margin-bottom: 40rpx;
+}
+
+.chart-section:last-child {
+  margin-bottom: 0;
+}
+
+.chart-title {
+  font-size: 28rpx;
+  font-weight: bold;
+  margin-bottom: 10rpx;
+  color: #333;
+}
+
+.chart-placeholder {
+  height: 300rpx;
+  background: #f8f9fa;
+  border-radius: 10rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6c757d;
+  font-size: 24rpx;
 }

@@ -1,26 +1,116 @@
 ﻿<view class="container">
-  <view class="header">
-    <text class="title">彩票号码生成器</text>
+  <!-- 登录区域 -->
+  <view class="login-section" wx:if="{{!hasToken}}">
+    <button type="primary" bindtap="handleLoginTap" loading="{{loadingLogin}}">微信登录</button>
   </view>
-  
+
+  <!-- 游戏选择器 -->
   <view class="game-switcher">
-    <button class="game-btn active" data-game="ssq">双色球</button>
-    <button class="game-btn" data-game="dlt">大乐透</button>
+    <button class="game-btn {{currentGame === 'ssq' ? 'active' : ''}}" data-game="ssq" bindtap="switchGame">双色球</button>
+    <button class="game-btn {{currentGame === 'dlt' ? 'active' : ''}}" data-game="dlt" bindtap="switchGame">大乐透</button>
   </view>
-  
-  <view class="number-display">
-    <view class="number-group">
-      <text class="number red">01</text>
-      <text class="number red">02</text>
-      <text class="number red">03</text>
-      <text class="number red">04</text>
-      <text class="number red">05</text>
-      <text class="number red">06</text>
+
+  <!-- 机选注数区域 -->
+  <view class="generate-section">
+    <view class="section-title">机选注数</view>
+    <view class="generate-controls">
+      <button class="generate-btn" bindtap="generateNumbers">一键生成幸运号码</button>
+      <view class="count-controls">
+        <button class="count-btn" bindtap="decreaseCount">-</button>
+        <text class="count-text">{{generateCount}}</text>
+        <button class="count-btn" bindtap="increaseCount">+</button>
+      </view>
     </view>
-    <view class="number-group">
-      <text class="number blue">07</text>
+    <view class="advanced-link" bindtap="toggleAdvanced">
+      <text>胆码/排除等高级设置</text>
+      <text class="arrow">{{showAdvanced ? '▼' : '▶'}}</text>
     </view>
   </view>
-  
-  <button class="generate-btn">生成新号码</button>
+
+  <!-- 高级设置区域 -->
+  <view class="advanced-section" wx:if="{{showAdvanced}}">
+    <view class="section-title">胆码/排除设置</view>
+    
+    <!-- 模式切换 -->
+    <view class="mode-switcher">
+      <button class="mode-btn {{ballMode === 'lock' ? 'active' : ''}}" data-mode="lock" bindtap="switchBallMode">指定号码</button>
+      <button class="mode-btn {{ballMode === 'exclude' ? 'active' : ''}}" data-mode="exclude" bindtap="switchBallMode">排除号码</button>
+    </view>
+    
+    <view class="mode-tip">
+      <text wx:if="{{ballMode === 'lock'}}">点击号码将其指定为必选号码</text>
+      <text wx:else>点击号码将其排除，不参与随机生成</text>
+    </view>
+    
+    <!-- 红球选择区 -->
+    <view class="ball-section">
+      <view class="ball-title">红球 ({{currentGame === 'ssq' ? '1-33' : '1-35'}})</view>
+      <view class="ball-grid">
+        <view class="ball-item {{item.status === 'locked' ? 'locked' : item.status === 'excluded' ? 'excluded' : ''}}" 
+              wx:for="{{redBalls}}" wx:key="number" 
+              data-number="{{item.number}}" 
+              data-type="red" 
+              bindtap="toggleBallStatus">
+          {{item.number}}
+        </view>
+      </view>
+    </view>
+
+    <!-- 蓝球选择区 -->
+    <view class="ball-section">
+      <view class="ball-title">蓝球 ({{currentGame === 'ssq' ? '1-16' : '1-12'}})</view>
+      <view class="ball-grid">
+        <view class="ball-item {{item.status === 'locked' ? 'locked' : item.status === 'excluded' ? 'excluded' : ''}}" 
+              wx:for="{{blueBalls}}" wx:key="number" 
+              data-number="{{item.number}}" 
+              data-type="blue" 
+              bindtap="toggleBallStatus">
+          {{item.number}}
+        </view>
+      </view>
+    </view>
+
+    <button class="clear-btn" bindtap="clearAllSettings">清空设置</button>
+  </view>
+
+  <!-- 机选结果池 -->
+  <view class="results-section">
+    <view class="section-title">机选结果</view>
+    <view class="results-list" wx:if="{{generatedNumbers.length > 0}}">
+      <view class="result-item" wx:for="{{generatedNumbers}}" wx:key="index">
+        <view class="result-numbers">
+          <text class="number red" wx:for="{{item.redBalls}}" wx:key="*this">{{item}}</text>
+          <text class="number blue" wx:for="{{item.blueBalls}}" wx:key="*this">{{item}}</text>
+        </view>
+        <button class="select-btn" bindtap="selectNumber" data-index="{{index}}">选用</button>
+      </view>
+    </view>
+    <view class="empty-state" wx:else>
+      <text>点击上方按钮生成号码，从结果中挑选您心仪的组合</text>
+    </view>
+  </view>
+
+  <!-- 我的待选清单 -->
+  <view class="pending-section">
+    <view class="section-title">我的待选清单</view>
+    <view class="pending-list" wx:if="{{pendingNumbers.length > 0}}">
+      <view class="pending-item" wx:for="{{pendingNumbers}}" wx:key="index">
+        <view class="pending-numbers">
+          <text class="number red" wx:for="{{item.redBalls}}" wx:key="*this">{{item}}</text>
+          <text class="number blue" wx:for="{{item.blueBalls}}" wx:key="*this">{{item}}</text>
+        </view>
+        <button class="remove-btn" bindtap="removeFromPending" data-index="{{index}}">×</button>
+      </view>
+    </view>
+    <view class="empty-state" wx:else>
+      <text>请从上方结果中选用号码</text>
+    </view>
+  </view>
+
+  <!-- 底部操作栏 -->
+  <view class="action-bar" wx:if="{{pendingNumbers.length > 0}}">
+    <button class="action-btn copy-btn" bindtap="copyPendingList">一键复制清单</button>
+    <button class="action-btn collect-btn" bindtap="collectPendingList">一键收藏清单</button>
+    <button class="action-btn clear-btn" bindtap="clearPendingList">清空清单</button>
+  </view>
 </view>

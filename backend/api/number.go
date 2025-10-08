@@ -11,12 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GenerateRandomRequest 生成随机号码请求
-type GenerateRandomRequest struct {
-	GameCode string `json:"gameCode" binding:"required"`
-	Count    int    `json:"count"`
-}
-
 // SaveUserNumberRequest 保存用户号码请求
 type SaveUserNumberRequest struct {
 	GameCode  string            `json:"gameCode" binding:"required"`
@@ -30,50 +24,6 @@ type SaveUserNumberRequest struct {
 type UpdateUserNumberRequest struct {
 	Nickname string `json:"nickname"`
 	IsActive *bool  `json:"isActive"`
-}
-
-// GenerateRandomNumbers 生成随机号码
-func GenerateRandomNumbers(c *gin.Context) {
-	var req GenerateRandomRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code":    400,
-			"message": "参数错误",
-			"error":   err.Error(),
-		})
-		return
-	}
-
-	if req.Count <= 0 || req.Count > 10 {
-		req.Count = 1
-	}
-
-	// 获取游戏配置
-	game, err := service.GetGameByCode(mysql.DB, req.GameCode)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"code":    404,
-			"message": "游戏不存在",
-		})
-		return
-	}
-
-	// 生成随机号码
-	numbers, err := service.GenerateRandomNumbers(game, req.Count)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "生成随机号码失败",
-			"error":   err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"code":    200,
-		"message": "success",
-		"data":    numbers,
-	})
 }
 
 // SaveUserNumber 保存用户号码

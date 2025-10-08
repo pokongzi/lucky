@@ -1,16 +1,115 @@
-﻿<view class="container">
-  <view class="header">
-    <text class="title">历史开奖</text>
+<view class="container">
+  <!-- 游戏切换器 -->
+  <view class="game-switcher">
+    <button class="game-btn {{currentGame === 'ssq' ? 'active' : ''}}" data-game="ssq" bindtap="switchGame">双色球</button>
+    <button class="game-btn {{currentGame === 'dlt' ? 'active' : ''}}" data-game="dlt" bindtap="switchGame">大乐透</button>
   </view>
-  
-  <view class="history-list">
+
+  <!-- 内容切换Tabs -->
+  <view class="tab-bar">
+    <view class="tab-item {{currentTab === 'history' ? 'active' : ''}}" data-tab="history" bindtap="switchTab">历史开奖</view>
+    <view class="tab-item {{currentTab === 'distribution' ? 'active' : ''}}" data-tab="distribution" bindtap="switchTab">号码分布</view>
+    <view class="tab-item {{currentTab === 'missing' ? 'active' : ''}}" data-tab="missing" bindtap="switchTab">数据遗漏</view>
+  </view>
+
+  <!-- 历史开奖内容 -->
+  <view class="content-section" wx:if="{{currentTab === 'history'}}">
     <view class="history-item" wx:for="{{historyList}}" wx:key="id">
-      <view class="period">{{item.period}}</view>
+      <view class="period-info">
+        <text class="period">第{{item.period}}期</text>
+        <text class="date">{{item.date}}</text>
+      </view>
       <view class="numbers">
         <text class="number red" wx:for="{{item.redNumbers}}" wx:key="*this">{{item}}</text>
-        <text class="number blue">{{item.blueNumber}}</text>
+        <text class="number blue" wx:for="{{item.blueNumbers}}" wx:key="*this">{{item}}</text>
       </view>
-      <view class="date">{{item.date}}</view>
+    </view>
+  </view>
+
+  <!-- 号码分布内容 -->
+  <view class="content-section" wx:if="{{currentTab === 'distribution'}}">
+    <view class="filter-bar">
+      <button class="filter-btn {{periodFilter === 30 ? 'active' : ''}}" data-period="30" bindtap="setPeriodFilter">近30期</button>
+      <button class="filter-btn {{periodFilter === 50 ? 'active' : ''}}" data-period="50" bindtap="setPeriodFilter">近50期</button>
+      <button class="filter-btn {{periodFilter === 100 ? 'active' : ''}}" data-period="100" bindtap="setPeriodFilter">近100期</button>
+    </view>
+    
+    <view class="heatmap-section">
+      <view class="heatmap-title">红球热力图</view>
+      <view class="heatmap-description">根据出现次数用不同深浅的颜色填充，出现越多颜色越深</view>
+      <view class="heatmap-grid">
+        <view class="heatmap-item {{item.frequency > 0 ? 'hot' : ''}}" 
+              wx:for="{{redHeatmap}}" wx:key="number"
+              style="background: linear-gradient(135deg, rgba(255, 71, 87, 0.3), rgba(255, 71, 87, {{item.frequency / maxFrequency}}));">
+          {{item.number}}
+        </view>
+      </view>
+    </view>
+    
+    <view class="heatmap-section">
+      <view class="heatmap-title">蓝球热力图</view>
+      <view class="heatmap-description">根据出现次数用不同深浅的颜色填充，出现越多颜色越深</view>
+      <view class="heatmap-grid">
+        <view class="heatmap-item {{item.frequency > 0 ? 'hot' : ''}}" 
+              wx:for="{{blueHeatmap}}" wx:key="number"
+              style="background: linear-gradient(135deg, rgba(55, 66, 250, 0.3), rgba(55, 66, 250, {{item.frequency / maxFrequency}}));">
+          {{item.number}}
+        </view>
+      </view>
+    </view>
+    
+    <!-- 图表分析 (Chart) -->
+    <view class="chart-section">
+      <view class="chart-title">号码频率统计</view>
+      <view class="chart-description">展示每个号码在选定周期内的出现次数</view>
+      <view class="chart-placeholder">图表展示区域</view>
+    </view>
+    
+    <view class="chart-section">
+      <view class="chart-title">奇偶比、大小比、和值分布</view>
+      <view class="chart-description">以折线图或饼图展示近期走势</view>
+      <view class="chart-placeholder">图表展示区域</view>
+    </view>
+  </view>
+
+  <!-- 数据遗漏内容 -->
+  <view class="content-section" wx:if="{{currentTab === 'missing'}}">
+    <view class="missing-section">
+      <view class="missing-title">红球遗漏表</view>
+      <view class="missing-description">可按任意列排序</view>
+      <view class="missing-table">
+        <view class="table-header">
+          <text class="header-cell sortable" data-column="number" bindtap="sortMissingData">号码</text>
+          <text class="header-cell sortable" data-column="currentMissing" bindtap="sortMissingData">当前遗漏</text>
+          <text class="header-cell sortable" data-column="maxMissing" bindtap="sortMissingData">最大遗漏</text>
+          <text class="header-cell sortable" data-column="count" bindtap="sortMissingData">出现次数</text>
+        </view>
+        <view class="table-row" wx:for="{{redMissing}}" wx:key="number">
+          <text class="table-cell">{{item.number}}</text>
+          <text class="table-cell">{{item.currentMissing}}</text>
+          <text class="table-cell">{{item.maxMissing}}</text>
+          <text class="table-cell">{{item.count}}</text>
+        </view>
+      </view>
+    </view>
+    
+    <view class="missing-section">
+      <view class="missing-title">蓝球遗漏表</view>
+      <view class="missing-description">可按任意列排序</view>
+      <view class="missing-table">
+        <view class="table-header">
+          <text class="header-cell sortable" data-column="number" bindtap="sortMissingData">号码</text>
+          <text class="header-cell sortable" data-column="currentMissing" bindtap="sortMissingData">当前遗漏</text>
+          <text class="header-cell sortable" data-column="maxMissing" bindtap="sortMissingData">最大遗漏</text>
+          <text class="header-cell sortable" data-column="count" bindtap="sortMissingData">出现次数</text>
+        </view>
+        <view class="table-row" wx:for="{{blueMissing}}" wx:key="number">
+          <text class="table-cell">{{item.number}}</text>
+          <text class="table-cell">{{item.currentMissing}}</text>
+          <text class="table-cell">{{item.maxMissing}}</text>
+          <text class="table-cell">{{item.count}}</text>
+        </view>
+      </view>
     </view>
   </view>
 </view>

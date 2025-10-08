@@ -2,36 +2,103 @@
   padding: 20rpx;
   background-color: #f5f5f5;
   min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
+/* 顶部导航栏样式 */
 .header {
-  text-align: center;
-  margin-bottom: 40rpx;
-}
-
-.title {
-  font-size: 36rpx;
-  font-weight: bold;
-  color: #333;
-}
-
-.my-numbers-list {
-  background-color: #fff;
-  border-radius: 20rpx;
-  overflow: hidden;
-}
-
-.number-item {
-  padding: 30rpx;
-  border-bottom: 1rpx solid #eee;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 20rpx 30rpx;
+  background: #fff;
+  border-bottom: 1rpx solid #eee;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.05);
+}
+
+
+
+
+
+/* 游戏切换器样式 */
+.game-switcher {
+  display: flex;
+  justify-content: center;
+  margin: 20rpx 0;
+  background: #fff;
+  border-radius: 50rpx;
+  padding: 5rpx;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.05);
+}
+
+.game-btn {
+  flex: 1;
+  padding: 20rpx 0;
+  margin: 0 5rpx;
+  border: none;
+  background: #f8f9fa;
+  border-radius: 50rpx;
+  font-size: 28rpx;
+  color: #666;
+  transition: all 0.3s;
+}
+
+.game-btn.active {
+  background: linear-gradient(135deg, #007bff, #0056b3);
+  color: #fff;
+  box-shadow: 0 4rpx 10rpx rgba(0, 123, 255, 0.3);
+}
+
+/* 号码列表样式 */
+.numbers-list {
+  margin-bottom: 30rpx;
+}
+
+.number-item {
+  display: flex;
+  padding: 30rpx;
+  background: #fff;
+  border-radius: 15rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 4rpx 15rpx rgba(0, 0, 0, 0.08);
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.3s;
+  position: relative;
+  overflow: hidden;
+}
+
+.number-item:last-child {
+  margin-bottom: 0;
+}
+
+.number-item.manage-mode {
+  background: #f8f9fa;
+  border: 2rpx dashed #007bff;
+}
+
+.number-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0));
+  z-index: 0;
+}
+
+.number-info {
+  flex: 1;
+  position: relative;
+  z-index: 1;
 }
 
 .numbers {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  margin-bottom: 15rpx;
 }
 
 .number {
@@ -42,34 +109,181 @@
   text-align: center;
   border-radius: 50%;
   margin-right: 10rpx;
+  margin-bottom: 10rpx;
   font-size: 22rpx;
   font-weight: bold;
   color: #fff;
+  box-shadow: 0 4rpx 8rpx rgba(0, 0, 0, 0.2);
+  transition: all 0.3s;
 }
 
 .number.red {
-  background-color: #ff4757;
+  background: linear-gradient(135deg, #ff4757, #ff6b81);
+  border: 2rpx solid #ff2e43;
 }
 
 .number.blue {
-  background-color: #3742fa;
+  background: linear-gradient(135deg, #3742fa, #5352ed);
+  border: 2rpx solid #2e38d9;
 }
 
+.number:hover {
+  transform: scale(1.1);
+}
+
+.meta-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.nickname {
+  font-size: 24rpx;
+  color: #333;
+  font-weight: 500;
+}
+
+.create-time {
+  font-size: 22rpx;
+  color: #999;
+  margin-top: 5rpx;
+}
+
+/* 操作按钮样式 */
 .actions {
   display: flex;
-  gap: 20rpx;
+  gap: 15rpx;
+  flex-direction: column;
 }
 
 .action-btn {
-  background-color: #ff4757;
-  color: #fff;
+  padding: 12rpx 25rpx;
+  border-radius: 50rpx;
+  font-size: 22rpx;
   border: none;
-  border-radius: 10rpx;
+  transition: all 0.3s;
+  min-width: 120rpx;
+  text-align: center;
+  box-shadow: 0 4rpx 10rpx rgba(0, 0, 0, 0.1);
 }
 
-.empty {
+.history-btn {
+  background: linear-gradient(135deg, #007bff, #0056b3);
+  color: #fff;
+}
+
+.history-btn:active {
+  background: linear-gradient(135deg, #0056b3, #004085);
+  transform: translateY(2rpx);
+  box-shadow: 0 2rpx 5rpx rgba(0, 123, 255, 0.2);
+}
+
+.delete-btn {
+  background: linear-gradient(135deg, #ff4757, #c4451c);
+  color: #fff;
+}
+
+.delete-btn:active {
+  background: linear-gradient(135deg, #c4451c, #a03816);
+  transform: translateY(2rpx);
+  box-shadow: 0 2rpx 5rpx rgba(255, 71, 87, 0.2);
+}
+
+
+
+/* 空状态样式 */
+.empty-state {
+  text-align: center;
+  padding: 150rpx 50rpx;
+  background: linear-gradient(135deg, #f8f9fa, #fff);
+  border-radius: 20rpx;
+  margin: 30rpx;
+  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.05);
+}
+
+.empty-icon {
+  font-size: 150rpx;
+  color: #adb5bd;
+  margin-bottom: 30rpx;
+  text-shadow: 0 4rpx 10rpx rgba(0, 0, 0, 0.1);
+}
+
+.empty-text {
+  font-size: 32rpx;
+  color: #6c757d;
+  margin-bottom: 40rpx;
+  line-height: 1.6;
+}
+
+.goto-generate-btn {
+  margin-top: 30rpx;
+  padding: 25rpx 60rpx;
+  background: linear-gradient(135deg, #007bff, #0056b3);
+  color: #fff;
+  border-radius: 50rpx;
+  font-size: 28rpx;
+  border: none;
+  transition: all 0.3s;
+  box-shadow: 0 6rpx 15rpx rgba(0, 123, 255, 0.3);
+  font-weight: 500;
+  position: relative;
+  overflow: hidden;
+}
+
+.goto-generate-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: 0.5s;
+}
+
+.goto-generate-btn:hover::before {
+  left: 100%;
+}
+
+.goto-generate-btn:active {
+  background: linear-gradient(135deg, #0056b3, #004085);
+  transform: translateY(4rpx);
+  box-shadow: 0 2rpx 8rpx rgba(0, 123, 255, 0.2);
+}
+
+/* 加载动画 */
+.loading {
   text-align: center;
   padding: 100rpx 0;
-  color: #999;
-  font-size: 28rpx;
+  background: linear-gradient(135deg, #f8f9fa, #fff);
+  border-radius: 20rpx;
+  margin: 30rpx;
+  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.05);
+}
+
+.spinner {
+  width: 100rpx;
+  height: 100rpx;
+  border: 10rpx solid #e9ecef;
+  border-top: 10rpx solid #007bff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 40rpx;
+  box-shadow: 0 4rpx 15rpx rgba(0, 0, 0, 0.1);
+}
+
+@keyframes spin {
+  0% { 
+    transform: rotate(0deg);
+  }
+  100% { 
+    transform: rotate(360deg);
+  }
+}
+
+.loading-text {
+  font-size: 30rpx;
+  color: #495057;
+  animation: pulse 1.5s infinite;
+  font-weight: 500;
 }

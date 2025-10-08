@@ -3,7 +3,9 @@ package api
 import (
 	"net/http"
 
+	"lucky/common/jwt"
 	"lucky/common/mysql"
+	"lucky/middleware"
 	"lucky/service"
 
 	"github.com/gin-gonic/gin"
@@ -48,12 +50,23 @@ func UserLogin(c *gin.Context) {
 		return
 	}
 
-	// TODO: 生成JWT token
+	// 生成JWT token
+	token, err := jwt.GenerateToken(uint64(user.ID), user.OpenID, user.Nickname)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "生成token失败",
+			"error":   err.Error(),
+		})
+		return
+	}
+
 	response := UserLoginResponse{
 		UserID:    uint64(user.ID),
 		OpenID:    user.OpenID,
 		Nickname:  user.Nickname,
 		AvatarURL: user.AvatarURL,
+		Token:     token,
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -65,35 +78,25 @@ func UserLogin(c *gin.Context) {
 
 // UserInfo 获取用户信息
 func UserInfo(c *gin.Context) {
-	// TODO: 从token中获取用户ID
-	userID := c.GetHeader("X-User-ID") // 临时使用header传递
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "未授权",
+	// 从中间件注入的上下文获取用户
+	if userModel, ok := middleware.GetCurrentUser(c); ok {
+		response := UserLoginResponse{
+			UserID:    uint64(userModel.ID),
+			OpenID:    userModel.OpenID,
+			Nickname:  userModel.Nickname,
+			AvatarURL: userModel.AvatarURL,
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"code":    200,
+			"message": "success",
+			"data":    response,
 		})
 		return
 	}
 
-	user, err := service.GetUserByID(mysql.DB, userID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"code":    404,
-			"message": "用户不存在",
-		})
-		return
-	}
-
-	response := UserLoginResponse{
-		UserID:    uint64(user.ID),
-		OpenID:    user.OpenID,
-		Nickname:  user.Nickname,
-		AvatarURL: user.AvatarURL,
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"code":    200,
-		"message": "success",
-		"data":    response,
+	c.JSON(http.StatusUnauthorized, gin.H{
+		"code":    401,
+		"message": "未授权",
 	})
 }

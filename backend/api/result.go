@@ -74,3 +74,41 @@ func GetDrawResultDetail(c *gin.Context) {
 		"data":    result,
 	})
 }
+
+// GetNumberDistribution 获取号码分布数据
+func GetNumberDistribution(c *gin.Context) {
+	gameCode := c.Param("gameCode")
+	if gameCode == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    400,
+			"message": "游戏代码不能为空",
+		})
+		return
+	}
+
+	// 获取期数参数，默认为30期
+	periodCount, _ := strconv.Atoi(c.DefaultQuery("periodCount", "30"))
+	// 限制最大期数为100
+	if periodCount > 100 {
+		periodCount = 100
+	}
+	if periodCount < 1 {
+		periodCount = 30
+	}
+
+	distribution, err := service.GetNumberDistribution(mysql.DB, gameCode, periodCount)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "获取号码分布数据失败",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "success",
+		"data":    distribution,
+	})
+}

@@ -1,21 +1,42 @@
-﻿<view class="container">
+<view class="container">
+  <!-- 顶部导航栏 -->
   <view class="header">
-    <text class="title">我的号码</text>
   </view>
-  
-  <view class="my-numbers-list">
-    <view class="number-item" wx:for="{{myNumbers}}" wx:key="id">
-      <view class="numbers">
-        <text class="number red" wx:for="{{item.redNumbers}}" wx:key="*this">{{item}}</text>
-        <text class="number blue">{{item.blueNumber}}</text>
+
+  <!-- 分组切换器 -->
+  <view class="game-switcher">
+    <button class="game-btn {{currentGame === 'ssq' ? 'active' : ''}}" data-game="ssq" bindtap="switchGame">双色球</button>
+    <button class="game-btn {{currentGame === 'dlt' ? 'active' : ''}}" data-game="dlt" bindtap="switchGame">大乐透</button>
+  </view>
+
+  <!-- 号码列表 -->
+  <view class="numbers-list">
+    <view class="number-item {{isManageMode ? 'manage-mode' : ''}}" wx:for="{{filteredNumbers}}" wx:key="id">
+      <!-- 左侧 - 号码与信息 -->
+      <view class="number-info">
+        <view class="numbers">
+          <text class="number red" wx:for="{{item.red_balls}}" wx:for-item="ball" wx:key="*this">{{ball}}</text>
+          <text class="number blue" wx:for="{{item.blue_balls}}" wx:for-item="ball" wx:key="*this">{{ball}}</text>
+        </view>
+        <view class="meta-info">
+          <text class="create-time">收藏于: {{item.created_at}}</text>
+        </view>
       </view>
+
+      <!-- 右侧 - 操作按钮 -->
       <view class="actions">
-        <button class="action-btn" size="mini" bindtap="deleteNumber" data-id="{{item.id}}">删除</button>
+        <button class="action-btn history-btn" bindtap="checkHistory" data-id="{{item.id}}">查询历史</button>
+        <button class="action-btn delete-btn" bindtap="deleteNumber" data-id="{{item.id}}">删除</button>
       </view>
+
+
     </view>
   </view>
-  
-  <view class="empty" wx:if="{{myNumbers.length === 0}}">
-    <text>暂无保存的号码</text>
+
+  <!-- 空状态 -->
+  <view class="empty-state" wx:if="{{filteredNumbers.length === 0}}">
+    <text class="empty-text">当前分类下暂无号码</text>
+    <button class="goto-generate-btn" bindtap="gotoGenerate">去生成号码</button>
   </view>
 </view>
+

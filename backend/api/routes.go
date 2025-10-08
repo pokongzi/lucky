@@ -1,6 +1,8 @@
 package api
 
 import (
+	"lucky/middleware"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -18,7 +20,15 @@ func RegisterUserRoutes(r *gin.Engine) {
 	userGroup := r.Group("/api/user")
 	{
 		userGroup.POST("/login", UserLogin)
-		userGroup.GET("/info", UserInfo)
+		userGroup.GET("/info", middleware.AuthRequired(), UserInfo)
+	}
+}
+
+// RegisterAuthRoutes 注册认证相关路由
+func RegisterAuthRoutes(r *gin.Engine) {
+	authGroup := r.Group("/api/auth")
+	{
+		authGroup.POST("/wxlogin", WxLogin)
 	}
 }
 
@@ -35,7 +45,6 @@ func RegisterGameRoutes(r *gin.Engine) {
 func RegisterNumberRoutes(r *gin.Engine) {
 	numberGroup := r.Group("/api/numbers")
 	{
-		numberGroup.POST("/random", GenerateRandomNumbers)
 		numberGroup.POST("/save", SaveUserNumber)
 		numberGroup.GET("/my", GetMyNumbers)
 		numberGroup.PUT("/:id", UpdateUserNumber)
@@ -48,7 +57,8 @@ func RegisterResultRoutes(r *gin.Engine) {
 	resultGroup := r.Group("/api/results")
 	{
 		resultGroup.GET("/:gameCode", GetDrawResults)
-		resultGroup.GET("/:gameCode/:period", GetDrawResultDetail)
+	resultGroup.GET("/:gameCode/:period", GetDrawResultDetail)
+	resultGroup.GET("/:gameCode/distribution", GetNumberDistribution)
 	}
 }
 
