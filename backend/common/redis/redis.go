@@ -48,8 +48,9 @@ func Init() {
 	client := redis.NewClient(&redis.Options{
 		Addr:         fmt.Sprintf("%s:%d", redisConfig.Host, redisConfig.Port),
 		Password:     redisConfig.RequirePass,
-		PoolSize:     poolSize,
-		MinIdleConns: minIdleConns,
+		DB:           redisConfig.Db,
+		PoolSize:     redisConfig.PoolSize,
+		MinIdleConns: redisConfig.MinIdleConns,
 	})
 	DB = &RedisDB{client: client, config: redisConfig, prefix: prefix}
 

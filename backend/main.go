@@ -6,6 +6,7 @@ import (
 	"lucky/api"
 	"lucky/common/config"
 	"lucky/common/mysql"
+	"lucky/common/redis"
 	"lucky/migration"
 	"lucky/service"
 
@@ -31,7 +32,8 @@ func main() {
 	}
 
 	// 初始化Redis
-	// redis.Init()
+	redis.Init()
+	log.Println("Redis连接成功")
 
 	r := gin.Default()
 	gin.SetMode(gin.DebugMode)

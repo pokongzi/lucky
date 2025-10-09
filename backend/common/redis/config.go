@@ -6,6 +6,8 @@ type RedisConfig struct {
 	Port        int    `ini:"port"`
 	Enabled     bool   `ini:"enabled"`
 	PoolSize    int    `ini:"pool_size"`
-	RequirePass string `ini:"requirepass"`
-	MaxClients  int    `ini:"maxclients"`
+	RequirePass string `ini:"password"`
+	MaxClients  int    `ini:"max_clients"`
+	Db          int    `ini:"db"`
+	MinIdleConns int    `ini:"min_idle_conns"`
 }
