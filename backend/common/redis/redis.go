@@ -58,6 +58,7 @@ func Init() {
 	if err != nil {
 		panic(err)
 	}
+	log.Info("redis connection success ")
 }
 
 func (r *RedisDB) SetPrefix(prefix string) *RedisDB {

@@ -86,13 +86,10 @@ func GetNumberDistribution(c *gin.Context) {
 		return
 	}
 
-	// 获取期数参数，默认为30期
+	// 获取期数参数，默认为30期，可选10、30、50期
 	periodCount, _ := strconv.Atoi(c.DefaultQuery("periodCount", "30"))
-	// 限制最大期数为100
-	if periodCount > 100 {
-		periodCount = 100
-	}
-	if periodCount < 1 {
+	// 只允许10、30、50三个选项，其他情况默认30期
+	if periodCount != 10 && periodCount != 30 && periodCount != 50 {
 		periodCount = 30
 	}
 

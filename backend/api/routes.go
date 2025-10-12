@@ -49,6 +49,7 @@ func RegisterNumberRoutes(r *gin.Engine) {
 		numberGroup.GET("/my", GetMyNumbers)
 		numberGroup.PUT("/:id", UpdateUserNumber)
 		numberGroup.DELETE("/:id", DeleteUserNumber)
+		numberGroup.GET("/:numberId/check", CheckWinning) // 新增：中奖核对
 	}
 }
 
@@ -70,5 +71,14 @@ func RegisterCrawlerRoutes(r *gin.Engine) {
 	{
 		crawlerGroup.POST("/crawl/:gameCode", CrawlLatestHandler) // 抓取最新开奖数据
 		crawlerGroup.GET("/test/:gameCode", TestCrawlHandler)     // 测试抓取功能
+	}
+}
+
+// RegisterMissingRoutes 注册遗漏数据相关路由
+func RegisterMissingRoutes(r *gin.Engine) {
+	missingGroup := r.Group("/api/missing")
+	{
+		missingGroup.GET("", GetMissingData)            // 获取指定期数的遗漏数据
+		missingGroup.GET("/batch", GetMissingDataBatch) // 批量获取多个期数的遗漏数据
 	}
 }

@@ -25,7 +25,7 @@
 
       <!-- 右侧 - 操作按钮 -->
       <view class="actions">
-        <button class="action-btn history-btn" bindtap="checkHistory" data-id="{{item.id}}">查询历史</button>
+        <button class="action-btn history-btn" bindtap="checkWinning" data-id="{{item.id}}">核对中奖</button>
         <button class="action-btn delete-btn" bindtap="deleteNumber" data-id="{{item.id}}">删除</button>
       </view>
 

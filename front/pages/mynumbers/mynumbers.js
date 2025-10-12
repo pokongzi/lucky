@@ -94,14 +94,83 @@ Page({
     });
   },
   
-  // 查询历史
-  checkHistory: function(e) {
-    const id = e.currentTarget.dataset.id;
-    wx.showToast({
-      title: '跳转到历史分析页',
-      icon: 'none'
+  // 核对中奖
+  checkWinning: function(e) {
+    const numberId = e.currentTarget.dataset.id;
+    const app = getApp();
+    const baseUrl = app.getBaseURL();
+    
+    wx.showLoading({
+      title: '核对中奖中...',
     });
-    // TODO: 实现跳转到单号深度分析页
+    
+    wx.request({
+      url: `${baseUrl}/api/numbers/${numberId}/check`,
+      method: 'GET',
+      header: {
+        'X-User-ID': '1'  // 实际使用时需要从登录状态获取真实用户ID
+      },
+      success: (res) => {
+        console.log('中奖核对响应:', res.data);
+        
+        if (res.data && res.data.code === 200 && res.data.data) {
+          this.showWinningModal(res.data.data);
+        } else {
+          wx.showToast({
+            title: res.data.message || '核对失败',
+            icon: 'none'
+          });
+        }
+      },
+      fail: (err) => {
+        console.error('核对中奖失败:', err);
+        wx.showToast({
+          title: '网络错误',
+          icon: 'none'
+        });
+      },
+      complete: () => {
+        wx.hideLoading();
+      }
+    });
+  },
+
+  // 显示中奖结果弹窗
+  showWinningModal: function(data) {
+    const { userNumber, matches, totalMatches, totalPrize } = data;
+    
+    let content = '';
+    if (totalMatches === 0) {
+      content = '很遗憾，该组号码最近一个月没有中奖情况。';
+    } else {
+      content = `恭喜您！该组号码在近14期内共中奖 ${totalMatches} 次，累计奖金 ${this.formatPrize(totalPrize)}。\n\n详细中奖情况：\n`;
+      
+      matches.forEach((match, index) => {
+        content += `${index + 1}. ${match.period}期 (${match.drawDate})\n`;
+        content += `   中奖等级：${match.winLevel}\n`;
+        content += `   匹配情况：红球${match.redMatches}个，蓝球${match.blueMatches}个\n`;
+        content += `   奖金：${this.formatPrize(match.prizeAmount)}\n`;
+        if (index < matches.length - 1) content += '\n';
+      });
+    }
+    
+    wx.showModal({
+      title: '中奖核对结果',
+      content: content,
+      showCancel: false,
+      confirmText: '确定',
+      confirmColor: '#007AFF'
+    });
+  },
+
+  // 格式化奖金显示
+  formatPrize: function(prizeInCents) {
+    const yuan = prizeInCents / 100;
+    if (yuan >= 10000) {
+      return `${(yuan / 10000).toFixed(1)}万元`;
+    } else {
+      return `${yuan}元`;
+    }
   },
   
   // 删除号码

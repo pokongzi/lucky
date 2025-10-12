@@ -46,6 +46,7 @@ func main() {
 	api.RegisterNumberRoutes(r)
 	api.RegisterResultRoutes(r)
 	api.RegisterCrawlerRoutes(r)
+	api.RegisterMissingRoutes(r)
 
 	// 定时抓取开奖数据
 	crawler := service.NewCrawlerService()

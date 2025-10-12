@@ -49,6 +49,16 @@ func (dao *UserNumberDAO) GetByID(id int64) (*UserNumber, error) {
 	return &userNumber, nil
 }
 
+// GetByIDWithGame 根据ID获取用户号码（包含游戏信息）
+func (dao *UserNumberDAO) GetByIDWithGame(id int64) (*UserNumber, error) {
+	var userNumber UserNumber
+	err := dao.db.Preload("Game").First(&userNumber, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &userNumber, nil
+}
+
 // GetByUserID 根据用户ID获取用户号码列表
 func (dao *UserNumberDAO) GetByUserID(userID int64, offset, limit int) ([]*UserNumber, error) {
 	var userNumbers []*UserNumber

@@ -63,6 +63,13 @@ Page({
         this.drawPieChart('blueBigSmallChart', this.data.blueBigSmallRatio, ['大数', '小数'], ['#3182ce', '#e23e3e']);
       }, 100);
     }
+    // 切换到数据遗漏标签时刷新数据
+    else if (tab === 'missing') {
+      // 延迟一点时间再加载，确保DOM已经更新
+      setTimeout(() => {
+        this.loadMissing();
+      }, 100);
+    }
   },
   
   // 设置期数筛选
@@ -72,6 +79,9 @@ Page({
       periodFilter: period
     });
     this.loadHeatmap();
+    if (this.data.currentTab === 'missing') {
+      this.loadMissing();
+    }
   },
   
   // 加载历史数据
@@ -250,12 +260,12 @@ Page({
             const redHeatmap = redDistribution.map(item => ({
               number: item.number,
               frequency: item.frequency
-            }));
+            })); // 保持原始顺序，不排序
             
             const blueHeatmap = blueDistribution.map(item => ({
               number: item.number,
               frequency: item.frequency
-            }));
+            })); // 保持原始顺序，不排序
             
             // 计算奇偶比和大小比
             const isSSQ = gameCode === 'ssq';
@@ -304,11 +314,15 @@ Page({
               }
             });
             
+            // 为频率统计图创建排序后的数据副本
+            const redFrequencyData = [...redHeatmap].sort((a, b) => b.frequency - a.frequency); // 按出现频率倒序排序
+            const blueFrequencyData = [...blueHeatmap].sort((a, b) => b.frequency - a.frequency); // 按出现频率倒序排序
+            
             this.setData({
-              redHeatmap: redHeatmap,
-              blueHeatmap: blueHeatmap,
-              redFrequencyData: redHeatmap,
-              blueFrequencyData: blueHeatmap,
+              redHeatmap: redHeatmap, // 热力图用原始顺序
+              blueHeatmap: blueHeatmap, // 热力图用原始顺序
+              redFrequencyData: redFrequencyData, // 频率图表用排序后的数据
+              blueFrequencyData: blueFrequencyData, // 频率图表用排序后的数据
               maxFrequency: maxFreq || 1,
               redOddEvenRatio: { odd: redOdd, even: redEven },
               redBigSmallRatio: { big: redBig, small: redSmall },
@@ -437,18 +451,19 @@ Page({
   // 绘制号码频率统计柱状图
   drawFrequencyChart: function(canvasId, data, isRed) {
     const ctx = wx.createCanvasContext(canvasId);
-    const canvasWidth = 300; // 画布宽度
+    // 根据数据量调整画布宽度，确保可滚动
+    const canvasWidth = isRed ? 600 : 400; // 红球数据多，宽度更大
     const canvasHeight = 200; // 画布高度
-    const padding = 20; // 边距
-    const barWidth = 8; // 柱状图宽度
-    const barGap = 4; // 柱状图间距
+    const padding = 30; // 边距
+    const barWidth = 14; // 柱状图宽度增加
+    const barGap = 8; // 柱状图间距增加
     
     // 清空画布
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
     
     // 计算图表区域大小
     const chartWidth = canvasWidth - 2 * padding;
-    const chartHeight = canvasHeight - 40; // 预留底部空间显示号码
+    const chartHeight = canvasHeight - 50; // 预留底部空间显示号码
     
     // 找出数据中的最大值
     let maxValue = 0;
@@ -463,12 +478,12 @@ Page({
     // 设置柱状图颜色
     const barColor = isRed ? '#e23e3e' : '#3182ce';
     
-    // 绘制柱状图
+    // 绘制柱状图 - 数据已按频率倒序排序
     data.forEach((item, index) => {
       // 计算柱子高度
       const barHeight = (item.frequency / maxValue) * chartHeight;
       const x = padding + index * (barWidth + barGap);
-      const y = canvasHeight - 30 - barHeight; // 减去底部空间
+      const y = canvasHeight - 40 - barHeight; // 减去底部空间
       
       // 绘制柱子
       ctx.setFillStyle(barColor);
@@ -476,15 +491,13 @@ Page({
       
       // 绘制数值标签
       ctx.setFillStyle('#2d3748');
-      ctx.setFontSize(10);
-      ctx.fillText(item.frequency.toString(), x - 2, y - 5);
+      ctx.setFontSize(12);
+      ctx.fillText(item.frequency.toString(), x + barWidth/2 - 4, y - 5);
       
-      // 绘制号码标签（每5个号码显示一个，避免拥挤）
-      if (index % 5 === 0) {
-        ctx.setFillStyle('#718096');
-        ctx.setFontSize(9);
-        ctx.fillText(item.number.toString(), x - 3, canvasHeight - 15);
-      }
+      // 绘制号码标签 - 每个柱子都显示号码
+      ctx.setFillStyle('#333333');
+      ctx.setFontSize(11);
+      ctx.fillText(item.number.toString(), x + barWidth/2 - 4, canvasHeight - 20);
     });
     
     // 绘制坐标轴
@@ -493,20 +506,25 @@ Page({
     
     // X轴
     ctx.beginPath();
-    ctx.moveTo(padding, canvasHeight - 30);
-    ctx.lineTo(canvasWidth - padding, canvasHeight - 30);
+    ctx.moveTo(padding, canvasHeight - 40);
+    ctx.lineTo(canvasWidth - padding, canvasHeight - 40);
     ctx.stroke();
     
     // Y轴
     ctx.beginPath();
     ctx.moveTo(padding, padding);
-    ctx.lineTo(padding, canvasHeight - 30);
+    ctx.lineTo(padding, canvasHeight - 40);
     ctx.stroke();
     
     // 绘制最大值标签
     ctx.setFillStyle('#718096');
     ctx.setFontSize(10);
-    ctx.fillText(maxValue.toString(), 5, padding);
+    ctx.fillText(maxValue.toString(), 10, padding);
+    
+    // 绘制标题
+    ctx.setFillStyle('#333333');
+    ctx.setFontSize(11);
+    ctx.fillText('按出现次数倒序排列', padding, 15);
     
     // 绘制完成后绘制到画布上
     ctx.draw();
@@ -607,34 +625,121 @@ Page({
   
   // 加载遗漏数据
   loadMissing: function() {
+    const app = getApp();
+    const baseUrl = app.getBaseURL();
+    const gameCode = this.data.currentGame;
+    const periodCount = this.data.periodFilter;
+    
+    console.log('开始加载号码遗漏数据，游戏代码:', gameCode, '期数:', periodCount);
+    
+    wx.showLoading({ title: '加载遗漏数据中...' });
+    
+    wx.request({
+      url: `${baseUrl}/api/missing?gameCode=${gameCode}&periodCount=${periodCount}`,
+      method: 'GET',
+      header: {
+        'Content-Type': 'application/json'
+      },
+      success: (res) => {
+        try {
+          console.log('遗漏数据API响应状态码:', res.statusCode);
+          console.log('遗漏数据API响应数据:', res.data);
+          
+          if (res.statusCode === 200 && res.data) {
+            const responseData = res.data;
+            
+            // 检查响应数据结构
+            if (responseData.redBalls && responseData.blueBalls) {
+              // 将API返回的数据设置到页面
+              this.setData({
+                redMissing: responseData.redBalls,
+                blueMissing: responseData.blueBalls
+              });
+              
+              console.log('遗漏数据加载成功:', {
+                redBalls: responseData.redBalls.length,
+                blueBalls: responseData.blueBalls.length
+              });
+            } else {
+              console.error('遗漏数据响应格式错误:', responseData);
+              this.showMissingFallback('响应数据格式错误');
+            }
+          } else {
+            console.error('遗漏数据API响应失败:', res.statusCode, res.data);
+            this.showMissingFallback('API响应失败');
+          }
+        } catch (error) {
+          console.error('解析遗漏数据响应时出错:', error);
+          this.showMissingFallback('数据解析错误');
+        }
+      },
+      fail: (error) => {
+        console.error('请求遗漏数据失败:', error);
+        this.showMissingFallback('网络请求失败');
+      },
+      complete: () => {
+        wx.hideLoading();
+      }
+    });
+  },
+
+  // 显示遗漏数据的降级方案（Mock数据）
+  showMissingFallback: function(reason) {
+    console.log('使用遗漏数据降级方案，原因:', reason);
+    
     const redMax = this.data.currentGame === 'ssq' ? 33 : 35;
     const blueMax = this.data.currentGame === 'ssq' ? 16 : 12;
+    const periodCount = this.data.periodFilter;
     
-    // 模拟遗漏数据
+    // 模拟遗漏数据作为降级方案
     const redMissing = [];
     const blueMissing = [];
     
     for (let i = 1; i <= redMax; i++) {
+      // 计算理论次数
+      let theoretical = this.data.currentGame === 'ssq' ? 
+          Math.round((periodCount * 6 / 33) * 10) / 10 : 
+          Math.round((periodCount * 5 / 35) * 10) / 10;
+      
+      const count = Math.max(0, Math.round(theoretical + (Math.random() * 6 - 3)));
+      
       redMissing.push({
         number: i,
+        theoretical: theoretical,
+        count: count,
+        lastMissing: Math.floor(Math.random() * 15),
         currentMissing: Math.floor(Math.random() * 20),
-        maxMissing: Math.floor(Math.random() * 50) + 20,
-        count: Math.floor(Math.random() * 100)
+        maxMissing: Math.floor(Math.random() * 50) + 20
       });
     }
     
     for (let i = 1; i <= blueMax; i++) {
+      let theoretical = this.data.currentGame === 'ssq' ? 
+          Math.round((periodCount * 1 / 16) * 10) / 10 : 
+          Math.round((periodCount * 2 / 12) * 10) / 10;
+      
+      const count = Math.max(0, Math.round(theoretical + (Math.random() * 4 - 2)));
+      
       blueMissing.push({
         number: i,
+        theoretical: theoretical,
+        count: count,
+        lastMissing: Math.floor(Math.random() * 10),
         currentMissing: Math.floor(Math.random() * 10),
-        maxMissing: Math.floor(Math.random() * 30) + 10,
-        count: Math.floor(Math.random() * 50)
+        maxMissing: Math.floor(Math.random() * 30) + 10
       });
     }
     
     this.setData({
       redMissing: redMissing,
       blueMissing: blueMissing
+    });
+    
+    // 显示提示信息
+    wx.showToast({
+      title: '网络异常，显示模拟数据',
+      icon: 'none',
+      duration: 2000
     });
   },
   
@@ -668,28 +773,50 @@ Page({
   // 排序数据遗漏表格
   sortMissingData: function(e) {
     const column = e.currentTarget.dataset.column;
-    const currentGame = this.data.currentGame;
+    const currentTab = e.currentTarget.dataset.type || 'red'; // 默认为红球
     
-    // 获取当前游戏的遗漏数据
-    let missingData = currentGame === 'ssq' ? this.data.redMissing : this.data.blueMissing;
+    // 获取当前类型的遗漏数据
+    const sortKey = `${currentTab}SortDirection`; // 例如：redSortDirection
+    const columnKey = `${currentTab}SortColumn`; // 例如：redSortColumn
+    
+    // 获取当前排序方向和列
+    let sortDirection = this.data[sortKey] || 'asc';
+    let currentColumn = this.data[columnKey] || 'number';
+    
+    // 如果点击的是同一列，切换排序方向；否则设为升序
+    if (column === currentColumn) {
+      sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortDirection = 'asc';
+      currentColumn = column;
+    }
+    
+    // 获取要排序的数据
+    let missingData = currentTab === 'red' ? [...this.data.redMissing] : [...this.data.blueMissing];
     
     // 排序逻辑
     missingData.sort((a, b) => {
-      if (a[column] < b[column]) return -1;
-      if (a[column] > b[column]) return 1;
-      return 0;
+      // 对于数字列使用数值比较，对于字符串列使用字符串比较
+      let comparison = 0;
+      if (typeof a[column] === 'number') {
+        comparison = a[column] - b[column];
+      } else {
+        comparison = String(a[column]).localeCompare(String(b[column]));
+      }
+      
+      // 根据排序方向返回比较结果
+      return sortDirection === 'asc' ? comparison : -comparison;
     });
     
-    // 更新数据
-    if (currentGame === 'ssq') {
-      this.setData({
-        redMissing: missingData
-      });
-    } else {
-      this.setData({
-        blueMissing: missingData
-      });
-    }
+    // 更新数据和排序状态
+    const updateData = {};
+    updateData[currentTab === 'red' ? 'redMissing' : 'blueMissing'] = missingData;
+    updateData[sortKey] = sortDirection;
+    updateData[columnKey] = currentColumn;
+    
+    this.setData(updateData);
+    
+    console.log(`排序 ${currentTab} 遗漏数据, 列: ${column}, 方向: ${sortDirection}`);
   },
   
   // 生成模拟历史数据

@@ -57,6 +57,20 @@ func GetLatestDrawResult(db *gorm.DB, gameCode string) (*model.DrawResult, error
 	return &result, err
 }
 
+// GetLatestDrawResults 获取最新的N期开奖结果
+func GetLatestDrawResults(db *gorm.DB, gameCode string, limit int) ([]model.DrawResult, error) {
+	var results []model.DrawResult
+
+	err := db.
+		Joins("JOIN lottery_games ON draw_results.game_id = lottery_games.id").
+		Where("lottery_games.game_code = ? AND lottery_games.is_active = ?", gameCode, true).
+		Order("draw_date DESC, period DESC").
+		Limit(limit).
+		Find(&results).Error
+
+	return results, err
+}
+
 // NumberFrequency 号码频率结构
 type NumberFrequency struct {
 	Number    int `json:"number"`
