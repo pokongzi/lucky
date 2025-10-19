@@ -18,8 +18,8 @@ func init() {
 	}
 	baseDir := filepath.Dir(exePath)
 	fmt.Println("test", baseDir)
-	// ConfigFile, err := ini.Load(baseDir + "/config/ini.ini")
-	ConfigFile, err := ini.Load("D:/go/src/lucky/backend/config/local.ini")
+	ConfigFile, err := ini.Load(baseDir + "/config/ini.ini")
+	// ConfigFile, err := ini.Load("D:/go/src/lucky/backend/config/local.ini")
 	if err != nil {
 		log.Fatal("未找到配置文件", err)
 		return

@@ -12,11 +12,6 @@ import (
 	"golang.org/x/net/http2/h2c"
 )
 
-// CrawlRequest 抓取请求参数
-type CrawlRequest struct {
-	GameCode string `json:"game_code" binding:"required"` // 游戏代码 (ssq/dlt)
-}
-
 // Response 统一响应结构
 type Response struct {
 	Code    int         `json:"code"`
@@ -45,11 +40,8 @@ func main() {
 	// 抓取任务接口
 	taskGroup := r.Group("/task")
 	{
-		// POST /task/crawl - 抓取并保存最新开奖数据
-		taskGroup.POST("/crawl", handleCrawl)
-
-		// GET /task/crawl/:gameCode - 抓取指定游戏的最新开奖数据
-		taskGroup.GET("/crawl/:gameCode", handleCrawlByGameCode)
+		// GET /task/crawl/:gameCode - 抓取并保存指定游戏的最新开奖数据
+		taskGroup.GET("/crawl/:gameCode", handleCrawlAndSave)
 	}
 
 	// 启动 gRPC 服务（用于 gocron）
@@ -86,55 +78,8 @@ func startGRPCServer() {
 	}
 }
 
-// handleCrawl 处理 POST 请求的抓取任务
-func handleCrawl(c *gin.Context) {
-	log.Printf("[%s] %s - 接收到抓取请求", c.Request.Method, c.Request.RequestURI)
-
-	var req CrawlRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("参数错误: %v", err)
-		c.JSON(http.StatusBadRequest, Response{
-			Code:    400,
-			Message: "参数错误: " + err.Error(),
-		})
-		return
-	}
-
-	// 验证游戏代码
-	if req.GameCode != "ssq" && req.GameCode != "dlt" {
-		log.Printf("不支持的游戏代码: %s", req.GameCode)
-		c.JSON(http.StatusBadRequest, Response{
-			Code:    400,
-			Message: "不支持的游戏代码，仅支持 ssq 或 dlt",
-		})
-		return
-	}
-
-	crawler := service.NewCrawlerService()
-
-	log.Printf("开始抓取 %s 最新开奖数据...\n", req.GameCode)
-	err := crawler.CrawlAndSaveLatest(req.GameCode)
-	if err != nil {
-		log.Printf("抓取失败: %v\n", err)
-		c.JSON(http.StatusInternalServerError, Response{
-			Code:    500,
-			Message: "抓取失败: " + err.Error(),
-		})
-		return
-	}
-
-	log.Printf("抓取 %s 成功\n", req.GameCode)
-	c.JSON(http.StatusOK, Response{
-		Code:    0,
-		Message: "抓取成功",
-		Data: map[string]string{
-			"game_code": req.GameCode,
-		},
-	})
-}
-
-// handleCrawlByGameCode 处理 GET 请求的抓取任务
-func handleCrawlByGameCode(c *gin.Context) {
+// handleCrawlAndSave 处理 GET 请求的抓取并保存任务
+func handleCrawlAndSave(c *gin.Context) {
 	log.Printf("[%s] %s - 接收到抓取请求", c.Request.Method, c.Request.RequestURI)
 
 	gameCode := c.Param("gameCode")
@@ -151,21 +96,21 @@ func handleCrawlByGameCode(c *gin.Context) {
 
 	crawler := service.NewCrawlerService()
 
-	log.Printf("开始抓取 %s 最新开奖数据...\n", gameCode)
+	log.Printf("开始抓取并保存 %s 最新开奖数据...\n", gameCode)
 	err := crawler.CrawlAndSaveLatest(gameCode)
 	if err != nil {
-		log.Printf("抓取失败: %v\n", err)
+		log.Printf("抓取并保存失败: %v\n", err)
 		c.JSON(http.StatusInternalServerError, Response{
 			Code:    500,
-			Message: "抓取失败: " + err.Error(),
+			Message: "抓取并保存失败: " + err.Error(),
 		})
 		return
 	}
 
-	log.Printf("抓取 %s 成功\n", gameCode)
+	log.Printf("抓取并保存 %s 成功\n", gameCode)
 	c.JSON(http.StatusOK, Response{
 		Code:    0,
-		Message: "抓取成功",
+		Message: "抓取并保存成功",
 		Data: map[string]string{
 			"game_code": gameCode,
 		},
