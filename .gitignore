@@ -77,7 +77,8 @@ project.private.config.json
 coverage.out
 coverage.html
 
-
+backend/cmd/command/command.exe
+backend/cmd/task/bin/crawler
 
 # 实际配置文件（包含敏感信息）
 backend/config/ini.ini
