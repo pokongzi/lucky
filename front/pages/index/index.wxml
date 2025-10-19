@@ -1,9 +1,4 @@
 ﻿<view class="container">
-  <!-- 登录区域 -->
-  <view class="login-section" wx:if="{{!hasToken}}">
-    <button type="primary" bindtap="handleLoginTap" loading="{{loadingLogin}}">微信登录</button>
-  </view>
-
   <!-- 游戏选择器 -->
   <view class="game-switcher">
     <button class="game-btn {{currentGame === 'ssq' ? 'active' : ''}}" data-game="ssq" bindtap="switchGame">双色球</button>

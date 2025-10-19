@@ -5,10 +5,18 @@ Page({
   data: {
     currentGame: 'ssq',
     myNumbers: [],
-    filteredNumbers: []
+    filteredNumbers: [],
+    hasLoaded: false, // 标记是否已经加载过数据
+    showWinningModal: false,
+    winningData: {}
   },
   
   onLoad: function() {
+    // onLoad时不加载数据，等待onShow
+  },
+
+  onShow: function() {
+    // 每次页面显示时都尝试加载数据
     this.loadMyNumbers();
   },
   
@@ -26,11 +34,30 @@ Page({
   
   // 加载我的号码
   loadMyNumbers: function() {
-    wx.showLoading({
-      title: '加载中',
-    });
+    // 使用按需授权：需要登录时自动触发
+    const authUtil = require('../../utils/auth.js');
     
-    // 调用后端API获取我的号码列表
+    authUtil.requireLogin((loginInfo) => {
+      // 登录成功后加载号码
+      this.fetchNumbersData(loginInfo.user.id);
+    }, {
+      title: '需要登录',
+      content: '查看我的号码需要登录，是否立即登录？',
+      showModal: true
+    }).catch((error) => {
+      if (error.code !== 'USER_CANCEL') {
+        wx.showToast({
+          title: error.message || '登录失败',
+          icon: 'none'
+        });
+      }
+    });
+  },
+
+  // 获取号码数据（独立方法）
+  fetchNumbersData: function(userId) {
+    wx.showLoading({ title: '加载中' });
+    
     wx.request({
       url: app.getBaseURL() + '/api/numbers/my',
       method: 'GET',
@@ -38,12 +65,14 @@ Page({
         gameCode: this.data.currentGame
       },
       header: {
-        'X-User-ID': '1'  // 实际使用时需要从登录状态获取真实用户ID
+        'X-User-ID': userId.toString()
       },
       success: (res) => {
+        wx.hideLoading();
         if (res.data && res.data.code === 200 && res.data.data) {
           this.setData({
-            myNumbers: res.data.data.list || []
+            myNumbers: res.data.data.list || [],
+            hasLoaded: true
           });
           this.filterNumbers();
         } else {
@@ -54,14 +83,11 @@ Page({
         }
       },
       fail: (err) => {
-        console.error('获取号码列表失败:', err);
+        wx.hideLoading();
         wx.showToast({
           title: '网络错误',
           icon: 'none'
         });
-      },
-      complete: () => {
-        wx.hideLoading();
       }
     });
   },
@@ -111,7 +137,6 @@ Page({
         'X-User-ID': '1'  // 实际使用时需要从登录状态获取真实用户ID
       },
       success: (res) => {
-        console.log('中奖核对响应:', res.data);
         
         if (res.data && res.data.code === 200 && res.data.data) {
           this.showWinningModal(res.data.data);
@@ -123,7 +148,6 @@ Page({
         }
       },
       fail: (err) => {
-        console.error('核对中奖失败:', err);
         wx.showToast({
           title: '网络错误',
           icon: 'none'
@@ -139,28 +163,47 @@ Page({
   showWinningModal: function(data) {
     const { userNumber, matches, totalMatches, totalPrize } = data;
     
-    let content = '';
-    if (totalMatches === 0) {
-      content = '很遗憾，该组号码最近一个月没有中奖情况。';
-    } else {
-      content = `恭喜您！该组号码在近14期内共中奖 ${totalMatches} 次，累计奖金 ${this.formatPrize(totalPrize)}。\n\n详细中奖情况：\n`;
-      
-      matches.forEach((match, index) => {
-        content += `${index + 1}. ${match.period}期 (${match.drawDate})\n`;
-        content += `   中奖等级：${match.winLevel}\n`;
-        content += `   匹配情况：红球${match.redMatches}个，蓝球${match.blueMatches}个\n`;
-        content += `   奖金：${this.formatPrize(match.prizeAmount)}\n`;
-        if (index < matches.length - 1) content += '\n';
-      });
-    }
-    
-    wx.showModal({
-      title: '中奖核对结果',
-      content: content,
-      showCancel: false,
-      confirmText: '确定',
-      confirmColor: '#007AFF'
+    // 处理中奖数据
+    const formattedMatches = matches.map(match => {
+      return {
+        ...match,
+        prizeText: this.formatPrize(match.prizeAmount),
+        levelClass: this.getWinLevelClass(match.winLevel)
+      };
     });
+    
+    this.setData({
+      showWinningModal: true,
+      winningData: {
+        totalMatches: totalMatches,
+        totalPrizeText: this.formatPrize(totalPrize),
+        matches: formattedMatches
+      }
+    });
+  },
+
+  // 关闭中奖结果弹窗
+  closeWinningModal: function() {
+    this.setData({
+      showWinningModal: false
+    });
+  },
+
+  // 获取中奖等级样式类名
+  getWinLevelClass: function(winLevel) {
+    if (winLevel.includes('一等奖') || winLevel.includes('特等奖')) {
+      return 'level-1';
+    } else if (winLevel.includes('二等奖')) {
+      return 'level-2';
+    } else if (winLevel.includes('三等奖')) {
+      return 'level-3';
+    } else if (winLevel.includes('四等奖')) {
+      return 'level-4';
+    } else if (winLevel.includes('五等奖')) {
+      return 'level-5';
+    } else {
+      return 'level-6';
+    }
   },
 
   // 格式化奖金显示

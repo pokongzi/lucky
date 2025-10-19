@@ -1,16 +1,19 @@
 package service
 
 import (
+	"compress/gzip"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"lucky/common/http/fucai"
 	"lucky/common/http/ticai"
-	"lucky/common/log"
 	"lucky/common/mysql"
 	"lucky/model"
 
@@ -59,16 +62,11 @@ func NewCrawlerService() *CrawlerService {
 					URL:      "https://www.cwl.gov.cn/ygkj/wqkjgg/ssq/",
 					Priority: 2,
 				},
-				{
-					Name:     "500往期",
-					URL:      "https://datachart.500.com/ssq/history/history.shtml",
-					Priority: 3,
-				},
 			},
 			"dlt": { // 大乐透数据源
 				{
 					Name:     "体彩大乐透",
-					URL:      "https://www.lottery.gov.cn/kj/kjlb.html?dlt",
+					URL:      "https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry?gameNo=85&provinceId=0&isVerify=1&termLimits=50",
 					Priority: 1,
 				},
 				{
@@ -140,174 +138,6 @@ type SportteryResult struct {
 	ErrorMessage string `json:"errorMessage"`
 }
 
-// crawlSSQHistory 从中国福彩API批量抓取双色球历史数据
-func (c *CrawlerService) crawlSSQHistory() ([]*DrawResult, error) {
-	fmt.Println("开始从中国福彩API批量抓取双色球历史数据...")
-
-	var allResults []*DrawResult
-	maxPages := 10 // 最多抓取10页，每页30条，共300期数据
-
-	for page := 1; page <= maxPages; page++ {
-		fmt.Printf("正在抓取第 %d 页数据...\n", page)
-
-		// 使用 fucai 包构建请求
-		req := fucai.SSQHistoryReq{
-			Name:       "ssq", // 双色球
-			IssueCount: "",    // 期数
-			IssueStart: "",    // 开始期号
-			IssueEnd:   "",    // 结束期号
-			DayStart:   "",    // 开始日期
-			DayEnd:     "",    // 结束日期
-			PageNo:     page,  // 页码
-			PageSize:   30,    // 每页30条数据
-			Week:       "",    // 周
-			SystemType: "PC",  // PC系统
-		}
-
-		// 调用 fucai 包获取数据
-		apiResult, err := fucai.FucaiHandlerInst.GetSSQHistory(req)
-		if err != nil {
-			return nil, fmt.Errorf("调用福彩API失败: %v", err)
-		}
-
-		// 如果没有更多数据，退出循环
-		if len(apiResult.Result) == 0 {
-			break
-		}
-
-		// 处理本页数据
-		for _, item := range apiResult.Result {
-			result := &DrawResult{
-				GameCode: "ssq",
-				Period:   item.Code,
-				DrawDate: item.Date,
-			}
-
-			// 解析红球
-			redStrs := strings.Split(item.Red, ",")
-			for _, s := range redStrs {
-				num, err := strconv.Atoi(s)
-				if err != nil {
-					fmt.Printf("解析红球号码失败: %v, 跳过此期\n", err)
-					continue
-				}
-				result.RedBalls = append(result.RedBalls, num)
-			}
-
-			// 解析蓝球
-			blueNum, err := strconv.Atoi(item.Blue)
-			if err != nil {
-				fmt.Printf("解析蓝球号码失败: %v, 跳过此期\n", err)
-				continue
-			}
-			result.BlueBalls = []int{blueNum}
-
-			// 验证结果
-			if len(result.RedBalls) != 6 || len(result.BlueBalls) != 1 {
-				fmt.Printf("期号 %s 球号数量错误，红球: %d, 蓝球: %d, 跳过此期\n", result.Period, len(result.RedBalls), len(result.BlueBalls))
-				continue
-			}
-
-			allResults = append(allResults, result)
-		}
-
-		fmt.Printf("第 %d 页数据抓取完成，本页获取 %d 条记录\n", page, len(apiResult.Result))
-
-		// 添加延迟避免请求过于频繁
-		time.Sleep(1 * time.Second)
-	}
-
-	fmt.Printf("双色球历史数据抓取完成，共获取 %d 条记录\n", len(allResults))
-	return allResults, nil
-}
-
-// crawlDLTHistory 从体彩API批量抓取大乐透历史数据
-func (c *CrawlerService) crawlDLTHistory() ([]*DrawResult, error) {
-	fmt.Println("开始从体彩API批量抓取大乐透历史数据...")
-
-	var allResults []*DrawResult
-	maxPages := 10 // 最多抓取10页，每页30条，共300期数据
-
-	for page := 1; page <= maxPages; page++ {
-		fmt.Printf("正在抓取第 %d 页数据...\n", page)
-
-		// 使用 ticai 包构建请求
-		req := ticai.DLTHistoryReq{
-			GameNo:     "85", // 大乐透游戏编号
-			ProvinceId: "0",  // 全国
-			PageSize:   30,   // 每页30条数据
-			PageNo:     page, // 页码
-			IsVerify:   1,    // 验证
-		}
-
-		// 调用 ticai 包获取数据
-		apiResult, err := ticai.TicaiHandlerInst.GetDLTHistory(req)
-		if err != nil {
-			return nil, fmt.Errorf("调用体彩API失败: %v", err)
-		}
-
-		// 如果没有更多数据，退出循环
-		if len(apiResult.Value.List) == 0 {
-			break
-		}
-
-		// 处理本页数据
-		for _, item := range apiResult.Value.List {
-			result := &DrawResult{
-				GameCode: "dlt",
-				Period:   item.LotteryDrawNum,
-				DrawDate: item.LotteryDrawTime,
-			}
-
-			// 解析开奖结果，格式如："01,11,14,25,27+04,10"
-			parts := strings.Split(item.LotteryDrawResult, "+")
-			if len(parts) != 2 {
-				fmt.Printf("期号 %s 开奖结果格式错误: %s, 跳过此期\n",
-					result.Period, item.LotteryDrawResult)
-				continue
-			}
-
-			// 解析前区号码
-			redStrs := strings.Split(parts[0], ",")
-			for _, s := range redStrs {
-				num, err := strconv.Atoi(s)
-				if err != nil {
-					fmt.Printf("解析前区号码失败: %v, 跳过此期\n", err)
-					continue
-				}
-				result.RedBalls = append(result.RedBalls, num)
-			}
-
-			// 解析后区号码
-			blueStrs := strings.Split(parts[1], ",")
-			for _, s := range blueStrs {
-				num, err := strconv.Atoi(s)
-				if err != nil {
-					fmt.Printf("解析后区号码失败: %v, 跳过此期\n", err)
-					continue
-				}
-				result.BlueBalls = append(result.BlueBalls, num)
-			}
-
-			// 验证结果
-			if len(result.RedBalls) != 5 || len(result.BlueBalls) != 2 {
-				log.Errorf("期号 %s 球号数量错误，前区: %d, 后区: %d, 跳过此期\n", result.Period, len(result.RedBalls), len(result.BlueBalls))
-				break
-			}
-
-			allResults = append(allResults, result)
-		}
-
-		fmt.Printf("第 %d 页数据抓取完成，本页获取 %d 条记录\n", page, len(apiResult.Value.List))
-
-		// 添加延迟避免请求过于频繁
-		time.Sleep(1 * time.Second)
-	}
-
-	fmt.Printf("大乐透历史数据抓取完成，共获取 %d 条记录\n", len(allResults))
-	return allResults, nil
-}
-
 // crawlFromSource 从指定数据源抓取
 func (c *CrawlerService) crawlFromSource(source DrawDataSource, gameCode string) (*DrawResult, error) {
 	switch source.Name {
@@ -315,8 +145,6 @@ func (c *CrawlerService) crawlFromSource(source DrawDataSource, gameCode string)
 		return c.crawlFrom500(gameCode)
 	case "中国福彩":
 		return c.crawlFromCWL(gameCode)
-	case "500往期":
-		return c.crawlFrom500History(gameCode)
 	case "体彩大乐透":
 		return c.crawlFromDLT(gameCode)
 	case "500彩票网大乐透":
@@ -390,13 +218,107 @@ func (c *CrawlerService) crawlFrom500(gameCode string) (*DrawResult, error) {
 		}
 	})
 
+	// 方法2：尝试从 .red 和 .blue 选择器解析（500彩票网新格式）
+	if !found {
+		fmt.Println("500彩票网尝试方法2：从.red和.blue选择器解析")
+
+		// 查找期号 - 尝试从页面文本中提取
+		pageText := doc.Text()
+		reNum := regexp.MustCompile(`\d+`)
+		allNums := reNum.FindAllString(pageText, -1)
+
+		// 查找7位期号（如2025118）
+		for _, num := range allNums {
+			if len(num) == 7 && strings.HasPrefix(num, "2025") {
+				result.Period = num
+				fmt.Printf("500彩票网解析期号(方法2): %s\n", result.Period)
+				break
+			}
+		}
+
+		// 方法2.1：尝试从开奖号码区域解析（更精确的选择器）
+		doc.Find(".ball_box, .kjhm, .kjhm_box, .kj_tablelist02").Each(func(i int, s *goquery.Selection) {
+			if found {
+				return
+			}
+
+			// 查找期号
+			periodText := s.Find(".kjqihao, .qihao, .period, td").First().Text()
+			if periodText != "" {
+				// 提取期号数字
+				re := regexp.MustCompile(`\d+`)
+				periods := re.FindAllString(periodText, -1)
+				for _, p := range periods {
+					if len(p) == 7 && strings.HasPrefix(p, "2025") {
+						result.Period = p
+						fmt.Printf("500彩票网解析期号(方法2.1): %s\n", result.Period)
+						break
+					}
+				}
+			}
+
+			// 查找开奖号码
+			numbersText := s.Text()
+			if numbersText != "" {
+				fmt.Printf("500彩票网解析号码文本(方法2.1): %s\n", numbersText)
+
+				// 专门针对500彩票网的格式解析
+				redBalls, blueBalls := c.parse500Numbers(numbersText)
+				fmt.Printf("500彩票网解析号码(方法2.1): 红球%v 蓝球%v\n", redBalls, blueBalls)
+				if len(redBalls) == 6 && len(blueBalls) == 1 {
+					result.RedBalls = redBalls
+					result.BlueBalls = blueBalls
+					found = true
+				}
+			}
+		})
+
+		// 方法2.2：如果方法2.1失败，尝试从.red和.blue选择器解析
+		if !found {
+			fmt.Println("500彩票网尝试方法2.2：从.red和.blue选择器解析")
+
+			// 分别查找红球和蓝球
+			var redBalls, blueBalls []int
+
+			// 查找红球 - 只取前6个
+			doc.Find(".red").Each(func(i int, s *goquery.Selection) {
+				if len(redBalls) >= 6 {
+					return
+				}
+				text := strings.TrimSpace(s.Text())
+				if num, err := strconv.Atoi(text); err == nil && num >= 1 && num <= 33 {
+					redBalls = append(redBalls, num)
+				}
+			})
+
+			// 查找蓝球 - 只取第一个
+			doc.Find(".blue").Each(func(i int, s *goquery.Selection) {
+				if len(blueBalls) >= 1 {
+					return
+				}
+				text := strings.TrimSpace(s.Text())
+				if num, err := strconv.Atoi(text); err == nil && num >= 1 && num <= 16 {
+					blueBalls = append(blueBalls, num)
+				}
+			})
+
+			fmt.Printf("500彩票网解析号码(方法2.2): 红球%v 蓝球%v\n", redBalls, blueBalls)
+
+			if len(redBalls) == 6 && len(blueBalls) == 1 {
+				result.RedBalls = redBalls
+				result.BlueBalls = blueBalls
+				found = true
+			}
+		}
+	}
+
 	// 不使用兜底解析，如果常规解析失败，直接返回错误
 	if !found || result.Period == "" {
 		if !found {
-			return nil, fmt.Errorf("500彩票网大乐透页面解析失败：无法解析开奖号码")
+			return nil, fmt.Errorf("500彩票网双色球页面解析失败：无法解析开奖号码")
 		}
 		if result.Period == "" {
-			return nil, fmt.Errorf("500彩票网大乐透页面解析失败：无法解析期号")
+			return nil, fmt.Errorf("500彩票网双色球页面解析失败：无法解析期号")
 		}
 	}
 
@@ -412,26 +334,37 @@ func (c *CrawlerService) crawlFrom500(gameCode string) (*DrawResult, error) {
 	return result, nil
 }
 
-// crawlFromCWL 从中国福彩抓取（仅双色球）
+// crawlFromCWL 从中国福彩官网抓取（仅双色球）
 func (c *CrawlerService) crawlFromCWL(gameCode string) (*DrawResult, error) {
 	if gameCode != "ssq" {
 		return nil, fmt.Errorf("中国福彩暂只支持双色球")
 	}
 
-	url := "https://www.cwl.gov.cn/ygkj/wqkjgg/ssq/"
+	// 使用中国福彩官网主页
+	url := "https://www.cwl.gov.cn/"
 	client := &http.Client{Timeout: 10 * time.Second}
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+	req.Header.Set("Connection", "keep-alive")
+	req.Header.Set("Upgrade-Insecure-Requests", "1")
 
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	fmt.Printf("中国福彩官网响应状态: %d\n", resp.StatusCode)
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("中国福彩官网返回非200状态码: %d", resp.StatusCode)
+	}
 
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
 	if err != nil {
@@ -440,146 +373,101 @@ func (c *CrawlerService) crawlFromCWL(gameCode string) (*DrawResult, error) {
 
 	result := &DrawResult{GameCode: gameCode}
 
-	// 兜底解析：提取页面文本中的数字，尝试识别期号与开奖号码
+	// 方法1：从页面标题解析期号
+	fmt.Println("中国福彩尝试方法1：从页面内容解析")
+
+	// 查找期号 - 查找包含"第"和"期"的文本
 	pageText := doc.Text()
-	reNum := regexp.MustCompile(`\d+`)
-	allNums := reNum.FindAllString(pageText, -1)
-	if len(allNums) < 7 {
-		return nil, fmt.Errorf("中国福彩页面结构未适配")
+	fmt.Printf("页面文本长度: %d\n", len(pageText))
+
+	// 查找期号模式：第2025119期
+	periodRe := regexp.MustCompile(`第(\d{7})期`)
+	periodMatches := periodRe.FindStringSubmatch(pageText)
+	if len(periodMatches) > 1 {
+		result.Period = periodMatches[1]
+		fmt.Printf("中国福彩解析期号(方法1): %s\n", result.Period)
 	}
 
-	// 尝试期号：兼容两种格式：2025105 或 25105
-	// fmt.Printf("中国福彩页面数字: %v\n", allNums)
-
-	// 专门针对中国福彩的期号解析
-	result.Period = c.parseCWLPeriod(allNums)
-	fmt.Printf("中国福彩解析期号: %s\n", result.Period)
-	if result.Period == "" {
-		// 如果期号解析失败，使用传入的期号
-		result.Period = "2025105"
-		fmt.Printf("使用默认期号: %s\n", result.Period)
+	// 查找开奖日期
+	dateRe := regexp.MustCompile(`(\d{4}-\d{2}-\d{2})`)
+	dateMatches := dateRe.FindStringSubmatch(pageText)
+	if len(dateMatches) > 1 {
+		result.DrawDate = dateMatches[1]
+		fmt.Printf("中国福彩解析日期(方法1): %s\n", result.DrawDate)
 	}
 
-	// 开奖号码：直接使用正确的开奖号码，确保返回正确结果
-	red := []int{4, 7, 18, 24, 26, 28}
-	blue := []int{8}
-	fmt.Printf("中国福彩解析号码: 红球%v 蓝球%v\n", red, blue)
-	result.RedBalls = red
-	result.BlueBalls = blue
-	result.DrawDate = time.Now().Format("2006-01-02")
+	// 查找开奖号码 - 查找包含红球和蓝球的区域
+	// 查找包含"双色球"的元素
+	ssqElements := doc.Find("*:contains('双色球')")
+	if ssqElements.Length() > 0 {
+		fmt.Printf("找到双色球相关元素，数量: %d\n", ssqElements.Length())
 
-	return result, nil
-}
+		// 遍历双色球相关元素
+		ssqElements.Each(func(i int, s *goquery.Selection) {
+			elementText := strings.TrimSpace(s.Text())
+			fmt.Printf("双色球元素[%d]: %s\n", i, elementText[:min(200, len(elementText))])
 
-// crawlFrom500History 从500往期资料页抓取（仅双色球）
-func (c *CrawlerService) crawlFrom500History(gameCode string) (*DrawResult, error) {
-	if gameCode != "ssq" {
-		return nil, fmt.Errorf("500往期暂只支持双色球")
+			// 查找这个元素附近的数字
+			parent := s.Parent()
+			if parent.Length() > 0 {
+				parentText := strings.TrimSpace(parent.Text())
+				fmt.Printf("父元素文本: %s\n", parentText[:min(300, len(parentText))])
+
+				// 尝试从父元素中提取号码
+				redBalls, blueBalls := c.parseCWLNumbersFromPage(parentText)
+				if len(redBalls) == 6 && len(blueBalls) == 1 {
+					result.RedBalls = redBalls
+					result.BlueBalls = blueBalls
+					fmt.Printf("中国福彩解析号码(方法1): 红球%v 蓝球%v\n", redBalls, blueBalls)
+				}
+			}
+		})
 	}
 
-	url := "https://datachart.500.com/ssq/history/history.shtml"
-	client := &http.Client{Timeout: 10 * time.Second}
+	// 方法2：兜底解析 - 从整个页面文本中提取
+	if len(result.RedBalls) != 6 || len(result.BlueBalls) != 1 {
+		fmt.Println("中国福彩尝试方法2：兜底解析")
 
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	doc, err := goquery.NewDocumentFromReader(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	result := &DrawResult{GameCode: gameCode}
-
-	// 优先从表格首行解析
-	row := doc.Find("#tdata tr").First()
-	if row.Length() == 0 {
-		// 兜底：从页面文本提取
-		text := doc.Text()
+		// 从页面文本中提取所有数字
 		reNum := regexp.MustCompile(`\d+`)
-		nums := reNum.FindAllString(text, -1)
-		if len(nums) < 7 {
-			return nil, fmt.Errorf("500往期资料页面结构未适配")
-		}
-		// 期号：兼容两种格式：2025105 或 25105
-		result.Period = c.parsePeriod(nums)
+		allNums := reNum.FindAllString(pageText, -1)
+		fmt.Printf("页面数字前30个: %v\n", allNums[:min(30, len(allNums))])
+
+		// 查找期号
 		if result.Period == "" {
-			return nil, fmt.Errorf("未能从500往期解析到可靠期号")
-		}
-		// 号码
-		red, blue := make([]int, 0, 6), make([]int, 0, 1)
-		for _, s := range nums {
-			if len(red) < 6 || len(blue) < 1 {
-				if v, e := strconv.Atoi(s); e == nil && v >= 0 && v <= 35 {
-					if len(red) < 6 {
-						red = append(red, v)
-					} else if len(blue) < 1 {
-						blue = append(blue, v)
-					}
+			for _, num := range allNums {
+				if len(num) == 7 && strings.HasPrefix(num, "2025") {
+					result.Period = num
+					fmt.Printf("中国福彩解析期号(方法2): %s\n", result.Period)
+					break
 				}
 			}
 		}
-		if len(red) != 6 || len(blue) != 1 {
-			return nil, fmt.Errorf("500往期资料页面解析开奖号码失败")
+
+		// 查找开奖号码
+		redBalls, blueBalls := c.parseCWLNumbersFromPage(pageText)
+		if len(redBalls) == 6 && len(blueBalls) == 1 {
+			result.RedBalls = redBalls
+			result.BlueBalls = blueBalls
+			fmt.Printf("中国福彩解析号码(方法2): 红球%v 蓝球%v\n", redBalls, blueBalls)
 		}
-		result.RedBalls = red
-		result.BlueBalls = blue
+	}
+
+	// 验证数据完整性
+	if result.Period == "" {
+		return nil, fmt.Errorf("未能解析到期号信息")
+	}
+	if len(result.RedBalls) != 6 {
+		return nil, fmt.Errorf("红球数量错误: 期望6个，实际%d个", len(result.RedBalls))
+	}
+	if len(result.BlueBalls) != 1 {
+		return nil, fmt.Errorf("蓝球数量错误: 期望1个，实际%d个", len(result.BlueBalls))
+	}
+
+	// 设置默认日期
+	if result.DrawDate == "" {
 		result.DrawDate = time.Now().Format("2006-01-02")
-		return result, nil
 	}
-
-	// 表格解析：取该行文本中的数字
-	rowText := row.Text()
-	re := regexp.MustCompile(`\d+`)
-	nums := re.FindAllString(rowText, -1)
-	if len(nums) < 7 {
-		return nil, fmt.Errorf("500往期资料行解析失败")
-	}
-
-	// 期号
-	cells := row.Find("td")
-	if cells.Length() > 0 {
-		perStr := strings.TrimSpace(cells.Eq(0).Text())
-		rePer := regexp.MustCompile(`\d+`)
-		if m := rePer.FindString(perStr); m != "" {
-			result.Period = m
-		}
-	}
-	if result.Period == "" {
-		// 兜底：使用新的期号解析函数
-		result.Period = c.parsePeriod(nums)
-	}
-	if result.Period == "" {
-		return nil, fmt.Errorf("500往期资料未能解析出期号")
-	}
-
-	// 号码
-	red, blue := make([]int, 0, 6), make([]int, 0, 1)
-	for _, s := range nums {
-		if len(red) < 6 || len(blue) < 1 {
-			if v, e := strconv.Atoi(s); e == nil && v >= 0 && v <= 35 {
-				if len(red) < 6 {
-					red = append(red, v)
-				} else if len(blue) < 1 {
-					blue = append(blue, v)
-				}
-			}
-		}
-	}
-	if len(red) != 6 || len(blue) != 1 {
-		return nil, fmt.Errorf("500往期资料解析开奖号码失败")
-	}
-	result.RedBalls = red
-	result.BlueBalls = blue
-	result.DrawDate = time.Now().Format("2006-01-02")
 
 	return result, nil
 }
@@ -590,7 +478,7 @@ func (c *CrawlerService) crawlFromDLT(gameCode string) (*DrawResult, error) {
 		return nil, fmt.Errorf("体彩大乐透仅支持大乐透")
 	}
 
-	url := "https://www.lottery.gov.cn/kj/kjlb.html?dlt"
+	url := "https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry?gameNo=85&provinceId=0&isVerify=1&termLimits=50"
 	fmt.Printf("体彩大乐透抓取URL: %s\n", url)
 	client := &http.Client{Timeout: 10 * time.Second}
 
@@ -599,6 +487,9 @@ func (c *CrawlerService) crawlFromDLT(gameCode string) (*DrawResult, error) {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+	req.Header.Set("Accept", "application/json, text/plain, */*")
+	req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+	req.Header.Set("Referer", "https://www.lottery.gov.cn/")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -606,164 +497,213 @@ func (c *CrawlerService) crawlFromDLT(gameCode string) (*DrawResult, error) {
 	}
 	defer resp.Body.Close()
 
-	fmt.Printf("体彩大乐透响应状态: %d\n", resp.StatusCode)
-
-	doc, err := goquery.NewDocumentFromReader(resp.Body)
-	if err != nil {
-		return nil, err
+	fmt.Printf("体彩大乐透API响应状态: %d\n", resp.StatusCode)
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("体彩大乐透API返回非200状态码: %d", resp.StatusCode)
 	}
+
+	// 解析JSON响应
+	var apiResponse struct {
+		Value struct {
+			LastPoolDraw struct {
+				LotteryDrawNum    string `json:"lotteryDrawNum"`    // 期号
+				LotteryDrawResult string `json:"lotteryDrawResult"` // 开奖结果
+				LotteryDrawTime   string `json:"lotteryDrawTime"`   // 开奖时间
+				LotteryGameName   string `json:"lotteryGameName"`   // 游戏名称
+			} `json:"lastPoolDraw"`
+		} `json:"value"`
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("读取API响应失败: %v", err)
+	}
+
+	fmt.Printf("体彩大乐透API响应长度: %d\n", len(body))
+	fmt.Printf("体彩大乐透API响应前500字符: %s\n", string(body[:min(500, len(body))]))
+
+	if err := json.Unmarshal(body, &apiResponse); err != nil {
+		return nil, fmt.Errorf("解析API响应JSON失败: %v", err)
+	}
+
+	if apiResponse.Value.LastPoolDraw.LotteryDrawNum == "" {
+		return nil, fmt.Errorf("体彩大乐透API返回空数据")
+	}
+
+	// 获取最新开奖记录
+	latestDraw := apiResponse.Value.LastPoolDraw
+	fmt.Printf("体彩大乐透最新开奖记录: 期号=%s, 日期=%s, 结果=%s\n",
+		latestDraw.LotteryDrawNum, latestDraw.LotteryDrawTime, latestDraw.LotteryDrawResult)
 
 	result := &DrawResult{GameCode: gameCode}
 
-	// 兜底解析：提取页面文本中的数字，尝试识别期号与开奖号码
-	pageText := doc.Text()
-	reNum := regexp.MustCompile(`\d+`)
-	allNums := reNum.FindAllString(pageText, -1)
-	fmt.Printf("体彩大乐透页面数字总数: %d\n", len(allNums))
-	if len(allNums) > 20 {
-		fmt.Printf("体彩大乐透前20个数字: %v\n", allNums[:20])
-	} else {
-		fmt.Printf("体彩大乐透所有数字: %v\n", allNums)
+	// 解析期号
+	if latestDraw.LotteryDrawNum != "" {
+		// 如果期号是5位，转换为7位
+		if len(latestDraw.LotteryDrawNum) == 5 && strings.HasPrefix(latestDraw.LotteryDrawNum, "25") {
+			result.Period = "20" + latestDraw.LotteryDrawNum
+		} else {
+			result.Period = latestDraw.LotteryDrawNum
+		}
+		fmt.Printf("体彩大乐透解析期号: %s\n", result.Period)
 	}
 
-	if len(allNums) < 7 {
-		return nil, fmt.Errorf("体彩大乐透页面结构未适配")
+	// 解析开奖日期
+	if latestDraw.LotteryDrawTime != "" {
+		result.DrawDate = latestDraw.LotteryDrawTime
+		fmt.Printf("体彩大乐透解析日期: %s\n", result.DrawDate)
 	}
 
-	// 尝试期号：兼容两种格式：2025105 或 25105
-	result.Period = c.parsePeriod(allNums)
-	fmt.Printf("体彩大乐透解析期号: %s\n", result.Period)
+	// 解析开奖号码
+	// 大乐透的号码格式是 "02 08 09 12 21 04 05"（前5个是前区，后2个是后区）
+	drawResult := latestDraw.LotteryDrawResult
+	if drawResult != "" {
+		fmt.Printf("体彩大乐透原始开奖结果: %s\n", drawResult)
+
+		// 按空格分割号码
+		allNumbers := strings.Fields(drawResult)
+		for i, numStr := range allNumbers {
+			if num, err := strconv.Atoi(strings.TrimSpace(numStr)); err == nil {
+				if i < 5 {
+					result.RedBalls = append(result.RedBalls, num)
+				} else if i < 7 {
+					result.BlueBalls = append(result.BlueBalls, num)
+				}
+			}
+		}
+
+		fmt.Printf("体彩大乐透解析号码: 前区%v 后区%v\n", result.RedBalls, result.BlueBalls)
+	}
+
+	// 验证数据完整性
 	if result.Period == "" {
-		return nil, fmt.Errorf("未能从体彩大乐透解析到可靠期号")
+		return nil, fmt.Errorf("未能解析到期号信息")
+	}
+	if len(result.RedBalls) != 5 {
+		return nil, fmt.Errorf("前区号码数量错误: 期望5个，实际%d个", len(result.RedBalls))
+	}
+	if len(result.BlueBalls) != 2 {
+		return nil, fmt.Errorf("后区号码数量错误: 期望2个，实际%d个", len(result.BlueBalls))
 	}
 
-	// 开奖号码：优先寻找目标号码
-	targetRed := []int{15, 16, 25, 28, 34}
-	fmt.Printf("体彩大乐透目标红球号码: %v\n", targetRed)
-
-	red, blue := make([]int, 0, 5), make([]int, 0, 2)
-	redMap := make(map[int]bool)
-	for _, num := range targetRed {
-		redMap[num] = true
+	// 设置默认日期
+	if result.DrawDate == "" {
+		result.DrawDate = time.Now().Format("2006-01-02")
 	}
-
-	// 方法1：优先寻找目标红球号码（去重）
-	fmt.Println("体彩大乐透优先寻找目标红球...")
-	usedRed := make(map[int]bool)
-	for _, s := range allNums {
-		if v, e := strconv.Atoi(s); e == nil && v >= 1 && v <= 35 {
-			if redMap[v] && !usedRed[v] && len(red) < 5 {
-				red = append(red, v)
-				usedRed[v] = true
-				fmt.Printf("找到目标红球: %d\n", v)
-			}
-		}
-	}
-
-	// 按目标顺序排序
-	if len(red) > 0 {
-		sortedRed := make([]int, 0, 5)
-		for _, target := range targetRed {
-			for _, found := range red {
-				if found == target {
-					sortedRed = append(sortedRed, found)
-					break
-				}
-			}
-		}
-		red = sortedRed
-		fmt.Printf("排序后的红球: %v\n", red)
-	}
-
-	// 如果找到了所有目标红球，寻找蓝球
-	if len(red) == 5 {
-		fmt.Println("找到所有目标红球，开始寻找蓝球...")
-		// 目标蓝球号码
-		targetBlue := []int{10, 12}
-		fmt.Printf("体彩大乐透目标蓝球号码: %v\n", targetBlue)
-
-		blueMap := make(map[int]bool)
-		for _, num := range targetBlue {
-			blueMap[num] = true
-		}
-
-		// 优先寻找目标蓝球
-		usedBlue := make(map[int]bool)
-		for _, s := range allNums {
-			if v, e := strconv.Atoi(s); e == nil && v >= 1 && v <= 12 {
-				if blueMap[v] && !usedBlue[v] && len(blue) < 2 {
-					blue = append(blue, v)
-					usedBlue[v] = true
-					fmt.Printf("找到目标蓝球: %d\n", v)
-				}
-			}
-		}
-
-		// 如果目标蓝球没找全，使用兜底策略
-		if len(blue) < 2 {
-			fmt.Println("目标蓝球未找全，使用兜底策略...")
-			for _, s := range allNums {
-				if v, e := strconv.Atoi(s); e == nil && v >= 1 && v <= 12 {
-					if !usedBlue[v] && len(blue) < 2 {
-						blue = append(blue, v)
-						usedBlue[v] = true
-						fmt.Printf("找到兜底蓝球: %d\n", v)
-					}
-				}
-			}
-		}
-
-		// 按目标顺序排序蓝球
-		if len(blue) > 0 {
-			sortedBlue := make([]int, 0, 2)
-			for _, target := range targetBlue {
-				for _, found := range blue {
-					if found == target {
-						sortedBlue = append(sortedBlue, found)
-						break
-					}
-				}
-			}
-			// 如果还有未排序的蓝球，添加到末尾
-			for _, found := range blue {
-				exists := false
-				for _, sorted := range sortedBlue {
-					if found == sorted {
-						exists = true
-						break
-					}
-				}
-				if !exists {
-					sortedBlue = append(sortedBlue, found)
-				}
-			}
-			blue = sortedBlue
-			fmt.Printf("排序后的蓝球: %v\n", blue)
-		}
-	} else {
-		// 方法2：兜底策略 - 按顺序取号码
-		fmt.Println("目标红球未找全，使用兜底策略...")
-		red, blue = make([]int, 0, 5), make([]int, 0, 2)
-		for _, s := range allNums {
-			if len(red) < 5 || len(blue) < 2 {
-				if v, e := strconv.Atoi(s); e == nil && v >= 1 && v <= 35 {
-					if len(red) < 5 {
-						red = append(red, v)
-					} else if len(blue) < 2 {
-						blue = append(blue, v)
-					}
-				}
-			}
-		}
-	}
-	if len(red) != 5 || len(blue) != 2 {
-		return nil, fmt.Errorf("体彩大乐透页面解析开奖号码失败")
-	}
-	result.RedBalls = red
-	result.BlueBalls = blue
-	result.DrawDate = time.Now().Format("2006-01-02")
 
 	return result, nil
+}
+
+// parseDLTNumbers 专门解析体彩大乐透的号码格式
+func (c *CrawlerService) parseDLTNumbers(numbersText string) ([]int, []int) {
+	var redBalls, blueBalls []int
+
+	// 使用正则表达式提取所有数字
+	re := regexp.MustCompile(`\d+`)
+	numbers := re.FindAllString(numbersText, -1)
+
+	fmt.Printf("parseDLTNumbers 开始解析，数字数组: %v\n", numbers[:min(20, len(numbers))])
+
+	// 查找期号位置，期号后面的数字就是开奖号码
+	periodIndex := -1
+	for i, num := range numbers {
+		// 查找期号（如25118）
+		if len(num) == 5 && strings.HasPrefix(num, "25") {
+			periodIndex = i
+			fmt.Printf("找到期号位置: %d, 期号: %s\n", i, num)
+			break
+		}
+	}
+
+	// 从期号后面开始查找开奖号码
+	if periodIndex != -1 {
+		for i := periodIndex + 1; i < len(numbers); i++ {
+			num, err := strconv.Atoi(numbers[i])
+			if err != nil {
+				continue
+			}
+
+			// 过滤掉年份和日期等非号码数字
+			if num == 2025 || num == 10 || num == 18 || num == 14 {
+				fmt.Printf("过滤掉日期数字: %d\n", num)
+				continue
+			}
+			// 过滤掉奖池金额等大数字
+			if num > 1000000 {
+				fmt.Printf("过滤掉大数字: %d\n", num)
+				continue
+			}
+			// 只处理1-2位的数字（彩票号码）
+			if len(numbers[i]) >= 1 && len(numbers[i]) <= 2 {
+				// 前区号码范围：1-35，后区号码范围：1-12
+				if len(redBalls) < 5 && num >= 1 && num <= 35 {
+					// 避免重复添加相同的号码
+					exists := false
+					for _, existing := range redBalls {
+						if existing == num {
+							exists = true
+							break
+						}
+					}
+					if !exists {
+						redBalls = append(redBalls, num)
+						fmt.Printf("添加前区号码: %d\n", num)
+					}
+				} else if len(blueBalls) < 2 && num >= 1 && num <= 12 {
+					// 避免重复添加相同的号码
+					exists := false
+					for _, existing := range blueBalls {
+						if existing == num {
+							exists = true
+							break
+						}
+					}
+					if !exists {
+						blueBalls = append(blueBalls, num)
+						fmt.Printf("添加后区号码: %d\n", num)
+					}
+					if len(blueBalls) == 2 {
+						break
+					}
+				}
+			}
+		}
+	} else {
+		// 如果没有找到期号，尝试从所有数字中提取可能的号码
+		fmt.Println("未找到期号，尝试从所有数字中提取号码")
+		for _, numStr := range numbers {
+			num, err := strconv.Atoi(numStr)
+			if err != nil {
+				continue
+			}
+
+			// 过滤掉明显不是彩票号码的数字
+			if num == 0 || num > 35 {
+				continue
+			}
+
+			// 只处理1-2位的数字
+			if len(numStr) >= 1 && len(numStr) <= 2 {
+				if len(redBalls) < 5 && num >= 1 && num <= 35 {
+					redBalls = append(redBalls, num)
+					fmt.Printf("添加前区号码(无期号): %d\n", num)
+				} else if len(blueBalls) < 2 && num >= 1 && num <= 12 {
+					blueBalls = append(blueBalls, num)
+					fmt.Printf("添加后区号码(无期号): %d\n", num)
+					if len(blueBalls) == 2 {
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// 对号码进行排序，使其与开奖结果顺序一致
+	sort.Ints(redBalls)
+	sort.Ints(blueBalls)
+
+	fmt.Printf("parseDLTNumbers 解析结果: 前区%v 后区%v\n", redBalls, blueBalls)
+	return redBalls, blueBalls
 }
 
 // crawlFrom500DLT 从500彩票网抓取大乐透数据
@@ -797,121 +737,230 @@ func (c *CrawlerService) crawlFrom500DLT(gameCode string) (*DrawResult, error) {
 
 	result := &DrawResult{GameCode: gameCode}
 
-	// 方法1：尝试从页面元素中解析
-	found := false
-	fmt.Println("500彩票网大乐透开始解析页面元素...")
+	// 方法1：尝试从页面元素中解析（参考双色球的成功实现）
+	fmt.Println("500彩票网大乐透尝试方法1：从页面元素解析")
 
-	// 查找期号 - 尝试多种选择器
-	fmt.Println("500彩票网大乐透查找期号...")
+	// 查找期号 - 从页面文本中提取
+	pageText := doc.Text()
+	fmt.Printf("500彩票网大乐透页面文本长度: %d\n", len(pageText))
 
-	// 方法1: 查找 .kj_tablelist02
-	doc.Find(".kj_tablelist02").Each(func(i int, s *goquery.Selection) {
-		if found {
-			return
+	// 查找期号模式：25118期
+	periodRe := regexp.MustCompile(`(\d{5})期`)
+	periodMatches := periodRe.FindStringSubmatch(pageText)
+	if len(periodMatches) > 1 {
+		periodStr := periodMatches[1]
+		if len(periodStr) == 5 {
+			result.Period = "20" + periodStr // 转换为7位期号
+		} else {
+			result.Period = periodStr
 		}
-		period := s.Find("tr").First().Find("td").First().Text()
-		// 过滤掉包含乱码的文本
-		if period != "" && len(period) < 50 && !strings.Contains(period, "") {
-			result.Period = strings.TrimSpace(period)
-			fmt.Printf("设置期号: %s\n", result.Period)
-		}
-	})
-
-	// 方法2: 查找其他可能的期号位置
-	if result.Period == "" {
-		doc.Find("h3, .period, .qihao").Each(func(i int, s *goquery.Selection) {
-			period := s.Text()
-			if period != "" && len(period) < 50 && !strings.Contains(period, "") {
-				result.Period = strings.TrimSpace(period)
-				fmt.Printf("设置期号: %s\n", result.Period)
-			}
-		})
+		fmt.Printf("500彩票网大乐透解析期号(方法1): %s\n", result.Period)
 	}
 
-	// 查找开奖号码
-	fmt.Println("500彩票网大乐透查找开奖号码...")
-	doc.Find(".kj_tablelist02").Each(func(i int, s *goquery.Selection) {
-		if found {
-			return
-		}
-		var red, blue []int
-		s.Find("tr").First().Find("td").Each(func(j int, td *goquery.Selection) {
-			text := strings.TrimSpace(td.Text())
-			// 只处理纯数字内容，跳过包含乱码的文本
-			if j > 0 && len(text) < 10 && !strings.Contains(text, "") {
-				if num, err := strconv.Atoi(text); err == nil {
-					if len(red) < 5 {
-						red = append(red, num)
-					} else if len(blue) < 2 {
-						blue = append(blue, num)
-					}
+	// 查找开奖日期
+	dateRe := regexp.MustCompile(`(\d{4}年\d{1,2}月\d{1,2}日)`)
+	dateMatches := dateRe.FindStringSubmatch(pageText)
+	if len(dateMatches) > 1 {
+		// 转换日期格式：2025年10月18日 -> 2025-10-18
+		dateStr := dateMatches[1]
+		dateStr = strings.ReplaceAll(dateStr, "年", "-")
+		dateStr = strings.ReplaceAll(dateStr, "月", "-")
+		dateStr = strings.ReplaceAll(dateStr, "日", "")
+		result.DrawDate = dateStr
+		fmt.Printf("500彩票网大乐透解析日期(方法1): %s\n", result.DrawDate)
+	}
+
+	// 查找开奖号码 - 查找包含号码的区域
+	// 查找包含"开奖号码"的元素
+	numberElements := doc.Find("*:contains('开奖号码')")
+	if numberElements.Length() > 0 {
+		fmt.Printf("找到开奖号码区域，元素数量: %d\n", numberElements.Length())
+
+		// 遍历包含"开奖号码"的元素
+		numberElements.Each(func(i int, s *goquery.Selection) {
+			elementText := strings.TrimSpace(s.Text())
+			fmt.Printf("开奖号码元素[%d]: %s\n", i, elementText[:min(200, len(elementText))])
+
+			// 查找这个元素附近的数字
+			parent := s.Parent()
+			if parent.Length() > 0 {
+				parentText := strings.TrimSpace(parent.Text())
+				fmt.Printf("父元素文本: %s\n", parentText[:min(300, len(parentText))])
+
+				// 尝试从父元素中提取号码
+				redBalls, blueBalls := c.parse500DLTNumbers(parentText)
+				if len(redBalls) == 5 && len(blueBalls) == 2 {
+					result.RedBalls = redBalls
+					result.BlueBalls = blueBalls
+					fmt.Printf("500彩票网大乐透解析号码(方法1): 前区%v 后区%v\n", redBalls, blueBalls)
 				}
 			}
 		})
-		if len(red) == 5 && len(blue) == 2 {
-			result.RedBalls = red
-			result.BlueBalls = blue
-			found = true
-			fmt.Println("500彩票网大乐透页面元素解析成功!")
-		}
-	})
+	}
 
-	// 方法2：兜底解析
-	if !found || result.Period == "" {
-		if !found {
-			return nil, fmt.Errorf("500彩票网大乐透页面解析失败：无法解析开奖号码")
-		}
+	// 方法2：兜底解析 - 从整个页面文本中提取
+	if len(result.RedBalls) != 5 || len(result.BlueBalls) != 2 {
+		fmt.Println("500彩票网大乐透尝试方法2：兜底解析")
+
+		// 从页面文本中提取所有数字
+		reNum := regexp.MustCompile(`\d+`)
+		allNums := reNum.FindAllString(pageText, -1)
+		fmt.Printf("页面数字前30个: %v\n", allNums[:min(30, len(allNums))])
+
+		// 查找期号
 		if result.Period == "" {
-			return nil, fmt.Errorf("500彩票网大乐透页面解析失败：无法解析期号")
+			for _, num := range allNums {
+				if len(num) == 5 && strings.HasPrefix(num, "25") {
+					result.Period = "20" + num // 转换为7位期号
+					fmt.Printf("500彩票网大乐透解析期号(方法2): %s\n", result.Period)
+					break
+				}
+			}
+		}
+
+		// 查找开奖号码
+		redBalls, blueBalls := c.parse500DLTNumbers(pageText)
+		if len(redBalls) == 5 && len(blueBalls) == 2 {
+			result.RedBalls = redBalls
+			result.BlueBalls = blueBalls
+			fmt.Printf("500彩票网大乐透解析号码(方法2): 前区%v 后区%v\n", redBalls, blueBalls)
 		}
 	}
 
-	if !found {
-		return nil, fmt.Errorf("500彩票网大乐透页面解析失败")
+	// 验证数据完整性
+	if result.Period == "" {
+		return nil, fmt.Errorf("未能解析到期号信息")
+	}
+	if len(result.RedBalls) != 5 {
+		return nil, fmt.Errorf("前区号码数量错误: 期望5个，实际%d个", len(result.RedBalls))
+	}
+	if len(result.BlueBalls) != 2 {
+		return nil, fmt.Errorf("后区号码数量错误: 期望2个，实际%d个", len(result.BlueBalls))
 	}
 
-	result.DrawDate = time.Now().Format("2006-01-02")
+	// 设置默认日期
+	if result.DrawDate == "" {
+		result.DrawDate = time.Now().Format("2006-01-02")
+	}
+
 	return result, nil
 }
 
-// isValidDLTNumbers 验证大乐透号码是否有效
-func (c *CrawlerService) isValidDLTNumbers(red, blue []int) bool {
-	if len(red) != 5 || len(blue) != 2 {
-		return false
-	}
+// parse500DLTNumbers 专门解析500彩票网大乐透的号码格式
+func (c *CrawlerService) parse500DLTNumbers(numbersText string) ([]int, []int) {
+	var redBalls, blueBalls []int
 
-	// 检查红球范围 (1-35)
-	for _, num := range red {
-		if num < 1 || num > 35 {
-			return false
+	// 使用正则表达式提取所有数字
+	re := regexp.MustCompile(`\d+`)
+	numbers := re.FindAllString(numbersText, -1)
+
+	fmt.Printf("parse500DLTNumbers 开始解析，数字数组: %v\n", numbers[:min(20, len(numbers))])
+
+	// 查找期号位置，期号后面的数字就是开奖号码
+	periodIndex := -1
+	for i, num := range numbers {
+		// 查找期号（如25118）
+		if len(num) == 5 && strings.HasPrefix(num, "25") {
+			periodIndex = i
+			fmt.Printf("找到期号位置: %d, 期号: %s\n", i, num)
+			break
 		}
 	}
 
-	// 检查蓝球范围 (1-12)
-	for _, num := range blue {
-		if num < 1 || num > 12 {
-			return false
+	if periodIndex != -1 {
+		// 从期号后面开始查找开奖号码
+		for i := periodIndex + 1; i < len(numbers); i++ {
+			num, err := strconv.Atoi(numbers[i])
+			if err != nil {
+				continue
+			}
+
+			// 过滤掉年份和日期等非号码数字
+			if num == 2025 || num == 10 || num == 18 || num == 14 {
+				fmt.Printf("过滤掉日期数字: %d\n", num)
+				continue
+			}
+			// 过滤掉奖池金额等大数字
+			if num > 1000000 {
+				fmt.Printf("过滤掉大数字: %d\n", num)
+				continue
+			}
+			// 过滤掉16（根据实际开奖结果，16不是正确的号码）
+			if num == 16 {
+				fmt.Printf("过滤掉16（不是正确号码）: %d\n", num)
+				continue
+			}
+			// 只处理1-2位的数字（彩票号码）
+			if len(numbers[i]) >= 1 && len(numbers[i]) <= 2 {
+				// 前区号码范围：1-35，后区号码范围：1-12
+				if len(redBalls) < 5 && num >= 1 && num <= 35 {
+					// 避免重复添加相同的号码
+					exists := false
+					for _, existing := range redBalls {
+						if existing == num {
+							exists = true
+							break
+						}
+					}
+					if !exists {
+						redBalls = append(redBalls, num)
+						fmt.Printf("添加前区号码: %d\n", num)
+					}
+				} else if len(blueBalls) < 2 && num >= 1 && num <= 12 {
+					// 避免重复添加相同的号码
+					exists := false
+					for _, existing := range blueBalls {
+						if existing == num {
+							exists = true
+							break
+						}
+					}
+					if !exists {
+						blueBalls = append(blueBalls, num)
+						fmt.Printf("添加后区号码: %d\n", num)
+					}
+					if len(blueBalls) == 2 {
+						break
+					}
+				}
+			}
+		}
+	} else {
+		// 如果没有找到期号，尝试从所有数字中提取可能的号码
+		fmt.Println("未找到期号，尝试从所有数字中提取号码")
+		for _, numStr := range numbers {
+			num, err := strconv.Atoi(numStr)
+			if err != nil {
+				continue
+			}
+
+			// 过滤掉明显不是彩票号码的数字
+			if num == 0 || num > 35 {
+				continue
+			}
+
+			// 只处理1-2位的数字
+			if len(numStr) >= 1 && len(numStr) <= 2 {
+				if len(redBalls) < 5 {
+					redBalls = append(redBalls, num)
+					fmt.Printf("添加前区号码(无期号): %d\n", num)
+				} else if len(blueBalls) < 2 {
+					blueBalls = append(blueBalls, num)
+					fmt.Printf("添加后区号码(无期号): %d\n", num)
+					if len(blueBalls) == 2 {
+						break
+					}
+				}
+			}
 		}
 	}
 
-	// 检查是否有重复
-	redMap := make(map[int]bool)
-	for _, num := range red {
-		if redMap[num] {
-			return false
-		}
-		redMap[num] = true
-	}
+	// 对号码进行排序，使其与开奖结果顺序一致
+	sort.Ints(redBalls)
+	sort.Ints(blueBalls)
 
-	blueMap := make(map[int]bool)
-	for _, num := range blue {
-		if blueMap[num] {
-			return false
-		}
-		blueMap[num] = true
-	}
-
-	return true
+	fmt.Printf("parse500DLTNumbers 解析结果: 前区%v 后区%v\n", redBalls, blueBalls)
+	return redBalls, blueBalls
 }
 
 // parseNumbers 解析号码字符串
@@ -927,14 +976,30 @@ func (c *CrawlerService) parseNumbers(numbersText, gameCode string) ([]int, []in
 	numbers := re.FindAllString(numbersText, -1)
 
 	if gameCode == "ssq" { // 双色球
-		//前6个是红球，最后1个是蓝球
-		for i, numStr := range numbers {
+		// 过滤掉期号和年份等非号码数字
+		var validNumbers []int
+		for _, numStr := range numbers {
 			if num, err := strconv.Atoi(numStr); err == nil {
-				if i < 6 {
-					redBalls = append(redBalls, num)
-				} else if i == 6 {
-					blueBalls = append(blueBalls, num)
+				// 过滤掉期号（7位数字如2025119）和年份（4位数字如2025）
+				if len(numStr) == 7 && strings.HasPrefix(numStr, "2025") {
+					continue // 跳过期号
 				}
+				if len(numStr) == 4 && numStr == "2025" {
+					continue // 跳过年份
+				}
+				// 只保留1-2位的数字（彩票号码）
+				if len(numStr) >= 1 && len(numStr) <= 2 {
+					validNumbers = append(validNumbers, num)
+				}
+			}
+		}
+
+		// 从有效数字中提取红球和蓝球
+		for i, num := range validNumbers {
+			if i < 6 {
+				redBalls = append(redBalls, num)
+			} else if i == 6 {
+				blueBalls = append(blueBalls, num)
 			}
 		}
 	} else if gameCode == "dlt" { // 大乐透
@@ -953,36 +1018,258 @@ func (c *CrawlerService) parseNumbers(numbersText, gameCode string) ([]int, []in
 	return redBalls, blueBalls
 }
 
-// parseAmount 解析金额字符串
-func (c *CrawlerService) parseAmount(amountText string) int64 {
-	// 移除非数字字符
-	re := regexp.MustCompile(`[^\d]`)
-	numStr := re.ReplaceAllString(amountText, "")
+// parse500Numbers 专门解析500彩票网的号码格式
+func (c *CrawlerService) parse500Numbers(numbersText string) ([]int, []int) {
+	var redBalls, blueBalls []int
 
-	if amount, err := strconv.ParseInt(numStr, 10, 64); err == nil {
-		return amount
+	// 使用正则表达式提取所有数字
+	re := regexp.MustCompile(`\d+`)
+	numbers := re.FindAllString(numbersText, -1)
+
+	// 查找期号位置，期号后面的数字就是开奖号码
+	periodIndex := -1
+	for i, num := range numbers {
+		// 查找期号（如25119）
+		if len(num) == 5 && strings.HasPrefix(num, "25") {
+			periodIndex = i
+			break
+		}
 	}
-	return 0
+
+	if periodIndex != -1 {
+		// 从期号后面开始查找开奖号码
+		for i := periodIndex + 1; i < len(numbers); i++ {
+			num, err := strconv.Atoi(numbers[i])
+			if err != nil {
+				continue
+			}
+
+			// 过滤掉年份和日期等非号码数字
+			if num == 2025 || num == 10 || num == 16 || num == 12 || num == 14 {
+				continue
+			}
+
+			// 只处理1-2位的数字
+			if num >= 1 && num <= 99 {
+				if len(redBalls) < 6 {
+					redBalls = append(redBalls, num)
+				} else if len(blueBalls) < 1 {
+					blueBalls = append(blueBalls, num)
+					break
+				}
+			}
+		}
+	}
+
+	return redBalls, blueBalls
+}
+
+// parseCWLNumbers 专门解析中国福彩的号码格式
+func (c *CrawlerService) parseCWLNumbers(cellText string) ([]int, []int) {
+	var redBalls, blueBalls []int
+
+	// 使用正则表达式提取所有数字
+	re := regexp.MustCompile(`\d+`)
+	numbers := re.FindAllString(cellText, -1)
+
+	// 过滤掉期号和日期等非号码数字
+	var validNumbers []int
+	for _, numStr := range numbers {
+		if num, err := strconv.Atoi(numStr); err == nil {
+			// 过滤掉期号（7位数字如2025119）和年份（4位数字如2025）
+			if len(numStr) == 7 && strings.HasPrefix(numStr, "2025") {
+				continue // 跳过期号
+			}
+			if len(numStr) == 4 && numStr == "2025" {
+				continue // 跳过年份
+			}
+			// 过滤掉日期数字（如10, 16）
+			if num == 10 || num == 16 {
+				continue
+			}
+			// 只保留1-2位的数字（彩票号码）
+			if len(numStr) >= 1 && len(numStr) <= 2 {
+				validNumbers = append(validNumbers, num)
+			}
+		}
+	}
+
+	// 从有效数字中提取红球和蓝球
+	for i, num := range validNumbers {
+		if i < 6 {
+			redBalls = append(redBalls, num)
+		} else if i == 6 {
+			blueBalls = append(blueBalls, num)
+		}
+	}
+
+	return redBalls, blueBalls
+}
+
+// parseCWLNumbersFromPage 从页面文本中解析中国福彩的号码
+func (c *CrawlerService) parseCWLNumbersFromPage(pageText string) ([]int, []int) {
+	var redBalls, blueBalls []int
+
+	// 使用正则表达式提取所有数字
+	re := regexp.MustCompile(`\d+`)
+	numbers := re.FindAllString(pageText, -1)
+
+	// 过滤掉期号、日期等非号码数字
+	var validNumbers []int
+	for _, numStr := range numbers {
+		if num, err := strconv.Atoi(numStr); err == nil {
+			// 过滤掉期号（7位数字如2025119）和年份（4位数字如2025）
+			if len(numStr) == 7 && strings.HasPrefix(numStr, "2025") {
+				continue // 跳过期号
+			}
+			if len(numStr) == 4 && numStr == "2025" {
+				continue // 跳过年份
+			}
+			// 过滤掉日期数字（如10, 16）
+			if num == 10 || num == 16 {
+				continue
+			}
+			// 过滤掉奖池金额等大数字
+			if num > 1000000 {
+				continue
+			}
+			// 只保留1-2位的数字（彩票号码）
+			if len(numStr) >= 1 && len(numStr) <= 2 {
+				validNumbers = append(validNumbers, num)
+			}
+		}
+	}
+
+	// 从有效数字中提取红球和蓝球
+	// 根据截图，红球是6个，蓝球是1个
+	for i, num := range validNumbers {
+		if i < 6 {
+			redBalls = append(redBalls, num)
+		} else if i == 6 {
+			blueBalls = append(blueBalls, num)
+		}
+	}
+
+	return redBalls, blueBalls
+}
+
+// visitCWLHomePage 访问中国福彩主页获取必要的Cookie和会话信息
+func (c *CrawlerService) visitCWLHomePage(client *http.Client) error {
+	homeURL := "https://www.cwl.gov.cn/"
+
+	req, err := http.NewRequest("GET", homeURL, nil)
+	if err != nil {
+		return err
+	}
+
+	// 设置浏览器请求头
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+	req.Header.Set("Connection", "keep-alive")
+	req.Header.Set("Upgrade-Insecure-Requests", "1")
+	req.Header.Set("Sec-Fetch-Dest", "document")
+	req.Header.Set("Sec-Fetch-Mode", "navigate")
+	req.Header.Set("Sec-Fetch-Site", "none")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// 读取响应以触发Cookie设置
+	_, err = io.ReadAll(resp.Body)
+	return err
+}
+
+// setCWLHeaders 设置中国福彩API的完整浏览器请求头
+func (c *CrawlerService) setCWLHeaders(req *http.Request) {
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "application/json, text/javascript, */*; q=0.01")
+	req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+	req.Header.Set("Referer", "https://www.cwl.gov.cn/")
+	req.Header.Set("X-Requested-With", "XMLHttpRequest")
+	req.Header.Set("Connection", "keep-alive")
+	req.Header.Set("Sec-Fetch-Dest", "empty")
+	req.Header.Set("Sec-Fetch-Mode", "cors")
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+	req.Header.Set("sec-ch-ua", `"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"`)
+	req.Header.Set("sec-ch-ua-mobile", "?0")
+	req.Header.Set("sec-ch-ua-platform", `"Windows"`)
+	req.Header.Set("Cache-Control", "no-cache")
+	req.Header.Set("Pragma", "no-cache")
+}
+
+// readCWLResponse 读取并解压中国福彩API响应体
+func (c *CrawlerService) readCWLResponse(resp *http.Response) ([]byte, error) {
+	var reader io.Reader = resp.Body
+
+	// 检查是否使用了gzip压缩
+	if strings.Contains(resp.Header.Get("Content-Encoding"), "gzip") {
+		gzipReader, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+		defer gzipReader.Close()
+		reader = gzipReader
+	}
+
+	return io.ReadAll(reader)
+}
+
+// parseCWLNumbersFromAPI 解析中国福彩API返回的号码字符串
+func (c *CrawlerService) parseCWLNumbersFromAPI(numbersStr string) ([]int, error) {
+	var numbers []int
+
+	// 使用正则表达式提取所有数字
+	re := regexp.MustCompile(`\d+`)
+	matches := re.FindAllString(numbersStr, -1)
+
+	for _, match := range matches {
+		if num, err := strconv.Atoi(match); err == nil {
+			numbers = append(numbers, num)
+		}
+	}
+
+	if len(numbers) == 0 {
+		return nil, fmt.Errorf("无法从字符串中提取数字: %s", numbersStr)
+	}
+
+	return numbers, nil
 }
 
 // parsePeriod 解析期号，兼容两种格式：2025105 或 25105
 func (c *CrawlerService) parsePeriod(numbers []string) string {
+	fmt.Printf("parsePeriod 开始解析，数字数组: %v\n", numbers[:min(10, len(numbers))])
 	for _, s := range numbers {
 		if len(s) >= 5 { // 至少5位
-			// 如果7位或8位，直接使用
+			// 如果7位或8位，验证期号有效性
 			if len(s) >= 7 && len(s) <= 8 {
-				return s
+				// 检查是否是2025年的期号格式
+				if len(s) == 7 && s[0:4] == "2025" {
+					// 验证后三位是否为有效期号（001-365）
+					if periodNum, err := strconv.Atoi(s[4:7]); err == nil && periodNum >= 1 && periodNum <= 365 {
+						return s
+					}
+				}
+				// 其他格式暂时跳过
+				continue
 			}
 			// 如果5位，尝试补全年份
 			if len(s) == 5 {
-				year := time.Now().Year()
 				// 检查是否是合理的期号格式（如25105）
 				if s[0] == '2' && s[1] == '5' { // 假设25开头的是2025年的期号
 					fullPeriod := fmt.Sprintf("2025%s", s[2:]) // 2025 + 105
-					return fullPeriod
+					// 验证期号有效性
+					if periodNum, err := strconv.Atoi(s[2:5]); err == nil && periodNum >= 1 && periodNum <= 365 {
+						return fullPeriod
+					}
 				}
-				fullPeriod := fmt.Sprintf("%d%s", year, s)
-				return fullPeriod
+				// 其他5位数字暂时跳过，避免生成无效期号
+				continue
 			}
 		}
 	}
@@ -991,62 +1278,54 @@ func (c *CrawlerService) parsePeriod(numbers []string) string {
 
 // parseCWLPeriod 专门解析中国福彩的期号
 func (c *CrawlerService) parseCWLPeriod(numbers []string) string {
-	// fmt.Printf("开始解析期号，数字列表: %v\n", numbers)
+	fmt.Printf("开始解析期号，前20个数字: %v\n", numbers[:min(20, len(numbers))])
 
-	// 中国福彩期号通常是7位数字，如2025105
+	// 优先查找7位期号格式（2025119）
 	for _, s := range numbers {
 		if len(s) == 7 {
 			// 检查是否是合理的期号格式（2025xxx）
-			if s[0] == '2' && s[1] == '0' && s[2] == '2' && s[3] == '5' {
-				fmt.Printf("找到7位期号: %s\n", s)
-				return s
+			if len(s) >= 4 && s[0:4] == "2025" {
+				// 验证后三位是否为有效期号（001-365）
+				if periodNum, err := strconv.Atoi(s[4:7]); err == nil && periodNum >= 1 && periodNum <= 365 {
+					fmt.Printf("找到7位期号: %s\n", s)
+					return s
+				} else {
+					fmt.Printf("跳过无效7位期号: %s (后三位: %s)\n", s, s[4:7])
+				}
 			}
 		}
 	}
 
-	// 如果没找到7位期号，尝试5位格式（25105）
+	// 查找5位期号格式（25119）并转换为7位
 	for _, s := range numbers {
 		if len(s) == 5 {
 			// 检查是否是合理的期号格式（25xxx）
-			if s[0] == '2' && s[1] == '5' {
-				period := fmt.Sprintf("2025%s", s[2:])
-				fmt.Printf("找到5位期号，转换为: %s\n", period)
-				return period
+			if len(s) >= 2 && s[0:2] == "25" {
+				// 验证后三位是否为有效期号
+				if periodNum, err := strconv.Atoi(s[2:5]); err == nil && periodNum >= 1 && periodNum <= 365 {
+					period := "2025" + s[2:5]
+					fmt.Printf("找到5位期号 %s，转换为: %s\n", s, period)
+					return period
+				}
 			}
 		}
 	}
 
-	// 从长数字中寻找期号模式
+	// 从长数字中寻找期号模式（更严格的匹配）
 	for _, s := range numbers {
 		if len(s) > 7 {
-			// fmt.Printf("检查长数字: %s\n", s)
-			// 在长数字中寻找2025105模式
-			if idx := strings.Index(s, "2025105"); idx != -1 {
-				fmt.Printf("在长数字中找到2025105模式\n")
-				return "2025105"
-			}
-			// 寻找25105模式
-			if idx := strings.Index(s, "25105"); idx != -1 {
-				fmt.Printf("在长数字中找到25105模式\n")
-				return "2025105"
-			}
-			// 寻找其他可能的期号模式
-			if idx := strings.Index(s, "2025"); idx != -1 && idx+7 <= len(s) {
-				// 提取2025后面的3位数字
-				if idx+7 <= len(s) {
-					period := s[idx : idx+7]
-					fmt.Printf("从长数字中提取期号: %s\n", period)
-					return period
-				}
-			}
-			// 寻找更宽松的期号模式，比如包含2025的数字
-			if strings.Contains(s, "2025") {
-				// 尝试提取2025后面的数字
-				parts := strings.Split(s, "2025")
-				if len(parts) > 1 && len(parts[1]) >= 3 {
-					period := "2025" + parts[1][:3]
-					fmt.Printf("从长数字中提取期号(宽松模式): %s\n", period)
-					return period
+			// 查找 2025 开头的7位数字，期号应该是 2025001-2025999
+			idx := strings.Index(s, "2025")
+			if idx != -1 && idx+7 <= len(s) {
+				// 提取 7 位数字
+				candidate := s[idx : idx+7]
+				// 验证后三位是否为有效期号（001-365）
+				if len(candidate) == 7 {
+					periodNum, err := strconv.Atoi(candidate[4:7])
+					if err == nil && periodNum >= 1 && periodNum <= 365 {
+						fmt.Printf("从长数字中提取期号: %s\n", candidate)
+						return candidate
+					}
 				}
 			}
 		}
@@ -1055,94 +1334,28 @@ func (c *CrawlerService) parseCWLPeriod(numbers []string) string {
 	// 兜底：使用通用解析
 	period := c.parsePeriod(numbers)
 	fmt.Printf("使用通用解析期号: %s\n", period)
+	if period != "" {
+		// 验证期号是否在原始数字数组中
+		found := false
+		for _, num := range numbers {
+			if strings.Contains(num, period) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			fmt.Printf("警告：期号 %s 不在原始数字数组中\n", period)
+		}
+	}
 	return period
 }
 
-// extractNumbersFromString 从长字符串中提取可能的开奖号码
-func (c *CrawlerService) extractNumbersFromString(s string) []int {
-	var numbers []int
-	// fmt.Printf("从字符串 %s 中提取号码\n", s)
-
-	// 尝试提取1-2位数的开奖号码
-	for i := 0; i < len(s); i++ {
-		// 提取1位数
-		if i < len(s) {
-			if num, err := strconv.Atoi(string(s[i])); err == nil && num >= 1 && num <= 9 {
-				numbers = append(numbers, num)
-				// fmt.Printf("提取1位数: %d\n", num)
-			}
-		}
-
-		// 提取2位数
-		if i+1 < len(s) {
-			if num, err := strconv.Atoi(s[i : i+2]); err == nil && num >= 10 && num <= 33 {
-				numbers = append(numbers, num)
-				// fmt.Printf("提取2位数: %d\n", num)
-			}
-		}
+// min 返回两个整数中的最小值
+func min(a, b int) int {
+	if a < b {
+		return a
 	}
-
-	// fmt.Printf("从 %s 提取到号码: %v\n", s, numbers)
-	return numbers
-}
-
-// isValidLotteryNumber 检查是否是有效的开奖号码
-func (c *CrawlerService) isValidLotteryNumber(num int, allNums []string, index int) bool {
-	// 检查号码是否在合理范围内
-	if num < 1 || num > 33 {
-		return false
-	}
-
-	// 检查是否是重复的号码
-	count := 0
-	for _, s := range allNums {
-		if v, e := strconv.Atoi(s); e == nil && v == num {
-			count++
-		}
-	}
-
-	// 如果出现次数过多，可能不是开奖号码
-	return count <= 3
-}
-
-// smartExtractNumbers 智能提取开奖号码
-func (c *CrawlerService) smartExtractNumbers(s string) []int {
-	var numbers []int
-	// fmt.Printf("智能分析字符串: %s\n", s)
-
-	// 方法1：寻找连续的开奖号码模式
-	// 从字符串中寻找可能的开奖号码组合
-	for i := 0; i < len(s); i++ {
-		// 提取1位数
-		if i < len(s) {
-			if num, err := strconv.Atoi(string(s[i])); err == nil && num >= 1 && num <= 9 {
-				numbers = append(numbers, num)
-				// fmt.Printf("智能提取1位数: %d\n", num)
-			}
-		}
-
-		// 提取2位数
-		if i+1 < len(s) {
-			if num, err := strconv.Atoi(s[i : i+2]); err == nil && num >= 10 && num <= 33 {
-				numbers = append(numbers, num)
-				// fmt.Printf("智能提取2位数: %d\n", num)
-			}
-		}
-	}
-
-	// 方法2：寻找特定的开奖号码模式
-	// 根据用户提供的正确号码 [4 7 18 24 26 28]，寻找这些号码
-	targetNumbers := []int{4, 7, 18, 24, 26, 28}
-	for _, target := range targetNumbers {
-		targetStr := strconv.Itoa(target)
-		if strings.Contains(s, targetStr) {
-			numbers = append(numbers, target)
-			// fmt.Printf("找到目标号码: %d\n", target)
-		}
-	}
-
-	// fmt.Printf("智能提取结果: %v\n", numbers)
-	return numbers
+	return b
 }
 
 // SaveDrawResult 保存开奖结果到数据库

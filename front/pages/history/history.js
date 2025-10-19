@@ -37,6 +37,11 @@ Page({
       hasMoreData: true,
       historyList: []
     });
+    this.loadAllData();
+  },
+  
+  // 加载所有数据
+  loadAllData: function() {
     this.loadHistory();
     this.loadHeatmap();
     this.loadMissing();
@@ -49,27 +54,29 @@ Page({
       currentTab: tab
     });
     
-    // 切换到号码分布标签时绘制频率图表和饼图
-    if (tab === 'distribution') {
-      // 延迟一点时间再绘制，确保DOM已经更新
-      setTimeout(() => {
-        this.drawFrequencyChart('redFrequencyChart', this.data.redFrequencyData, true);
-        this.drawFrequencyChart('blueFrequencyChart', this.data.blueFrequencyData, false);
-        
-        // 绘制奇偶比和大小比饼图
-        this.drawPieChart('redOddEvenChart', this.data.redOddEvenRatio, ['奇数', '偶数'], ['#e23e3e', '#3182ce']);
-        this.drawPieChart('redBigSmallChart', this.data.redBigSmallRatio, ['大数', '小数'], ['#e23e3e', '#3182ce']);
-        this.drawPieChart('blueOddEvenChart', this.data.blueOddEvenRatio, ['奇数', '偶数'], ['#3182ce', '#e23e3e']);
-        this.drawPieChart('blueBigSmallChart', this.data.blueBigSmallRatio, ['大数', '小数'], ['#3182ce', '#e23e3e']);
-      }, 100);
-    }
-    // 切换到数据遗漏标签时刷新数据
-    else if (tab === 'missing') {
-      // 延迟一点时间再加载，确保DOM已经更新
-      setTimeout(() => {
-        this.loadMissing();
-      }, 100);
-    }
+    // 延迟一点时间再执行，确保DOM已经更新
+    setTimeout(() => {
+      switch(tab) {
+        case 'distribution':
+          this.drawDistributionCharts();
+          break;
+        case 'missing':
+          this.loadMissing();
+          break;
+      }
+    }, 100);
+  },
+  
+  // 绘制分布图表
+  drawDistributionCharts: function() {
+    this.drawFrequencyChart('redFrequencyChart', this.data.redFrequencyData, true);
+    this.drawFrequencyChart('blueFrequencyChart', this.data.blueFrequencyData, false);
+    
+    // 绘制奇偶比和大小比饼图
+    this.drawPieChart('redOddEvenChart', this.data.redOddEvenRatio, ['奇数', '偶数'], ['#e23e3e', '#3182ce']);
+    this.drawPieChart('redBigSmallChart', this.data.redBigSmallRatio, ['大数', '小数'], ['#e23e3e', '#3182ce']);
+    this.drawPieChart('blueOddEvenChart', this.data.blueOddEvenRatio, ['奇数', '偶数'], ['#3182ce', '#e23e3e']);
+    this.drawPieChart('blueBigSmallChart', this.data.blueBigSmallRatio, ['大数', '小数'], ['#3182ce', '#e23e3e']);
   },
   
   // 设置期数筛选
@@ -214,146 +221,124 @@ Page({
     const gameCode = this.data.currentGame;
     const periodCount = this.data.periodFilter;
     
-    // 用户指定的接口URL格式
-    const targetUrl = `http://47.121.26.190:8080/api/results/distribution/${gameCode}?periodCount=${periodCount}`;
+    const targetUrl = `${baseUrl}/api/results/distribution/${gameCode}?periodCount=${periodCount}`;
     console.log('开始加载号码分布数据，游戏代码:', gameCode, '期数:', periodCount, '使用指定接口URL:', targetUrl);
     
     wx.showLoading({ title: '加载中' });
     
     wx.request({
-      url: targetUrl, // 使用用户指定的接口URL
+      url: targetUrl,
       method: 'GET',
       success: (res) => {
         try {
           console.log('号码分布API响应状态码:', res.statusCode);
           console.log('号码分布API响应数据:', res.data);
           
-          // 确保响应是有效的JSON
           const responseData = res.data;
           
           if (res.statusCode === 200 && responseData && responseData.data) {
-            const redDistribution = responseData.data.red || [];
-            const blueDistribution = responseData.data.blue || [];
-            
-            // 计算最大频率值
-            let maxFreq = 0;
-            
-            // 检查红球数据
-            if (redDistribution && redDistribution.length > 0) {
-              redDistribution.forEach(item => {
-                if (item.frequency > maxFreq) {
-                  maxFreq = item.frequency;
-                }
-              });
-            }
-            
-            // 检查蓝球数据
-            if (blueDistribution && blueDistribution.length > 0) {
-              blueDistribution.forEach(item => {
-                if (item.frequency > maxFreq) {
-                  maxFreq = item.frequency;
-                }
-              });
-            }
-            
-            // 转换数据格式以适配前端显示
-            const redHeatmap = redDistribution.map(item => ({
-              number: item.number,
-              frequency: item.frequency
-            })); // 保持原始顺序，不排序
-            
-            const blueHeatmap = blueDistribution.map(item => ({
-              number: item.number,
-              frequency: item.frequency
-            })); // 保持原始顺序，不排序
-            
-            // 计算奇偶比和大小比
-            const isSSQ = gameCode === 'ssq';
-            const redBigThreshold = isSSQ ? 17 : 18;
-            const blueBigThreshold = isSSQ ? 8 : 6;
-            
-            // 计算红球奇偶比和大小比
-            let redOdd = 0, redEven = 0, redBig = 0, redSmall = 0;
-            redHeatmap.forEach(item => {
-              const number = item.number;
-              const frequency = item.frequency;
-              
-              // 奇偶统计（按出现次数加权）
-              if (number % 2 === 1) {
-                redOdd += frequency;
-              } else {
-                redEven += frequency;
-              }
-              
-              // 大小统计（按出现次数加权）
-              if (number > redBigThreshold) {
-                redBig += frequency;
-              } else {
-                redSmall += frequency;
-              }
-            });
-            
-            // 计算蓝球奇偶比和大小比
-            let blueOdd = 0, blueEven = 0, blueBig = 0, blueSmall = 0;
-            blueHeatmap.forEach(item => {
-              const number = item.number;
-              const frequency = item.frequency;
-              
-              // 奇偶统计（按出现次数加权）
-              if (number % 2 === 1) {
-                blueOdd += frequency;
-              } else {
-                blueEven += frequency;
-              }
-              
-              // 大小统计（按出现次数加权）
-              if (number > blueBigThreshold) {
-                blueBig += frequency;
-              } else {
-                blueSmall += frequency;
-              }
-            });
-            
-            // 为频率统计图创建排序后的数据副本
-            const redFrequencyData = [...redHeatmap].sort((a, b) => b.frequency - a.frequency); // 按出现频率倒序排序
-            const blueFrequencyData = [...blueHeatmap].sort((a, b) => b.frequency - a.frequency); // 按出现频率倒序排序
-            
-            this.setData({
-              redHeatmap: redHeatmap, // 热力图用原始顺序
-              blueHeatmap: blueHeatmap, // 热力图用原始顺序
-              redFrequencyData: redFrequencyData, // 频率图表用排序后的数据
-              blueFrequencyData: blueFrequencyData, // 频率图表用排序后的数据
-              maxFrequency: maxFreq || 1,
-              redOddEvenRatio: { odd: redOdd, even: redEven },
-              redBigSmallRatio: { big: redBig, small: redSmall },
-              blueOddEvenRatio: { odd: blueOdd, even: blueEven },
-              blueBigSmallRatio: { big: blueBig, small: blueSmall }
-            });
-            
-            // 数据更新后绘制频率图表和饼图
-            this.drawFrequencyChart('redFrequencyChart', this.data.redFrequencyData, true);
-            this.drawFrequencyChart('blueFrequencyChart', this.data.blueFrequencyData, false);
-            this.drawPieChart('redOddEvenChart', this.data.redOddEvenRatio, ['奇数', '偶数'], ['#e23e3e', '#3182ce']);
-            this.drawPieChart('redBigSmallChart', this.data.redBigSmallRatio, ['大数', '小数'], ['#e23e3e', '#3182ce']);
-            this.drawPieChart('blueOddEvenChart', this.data.blueOddEvenRatio, ['奇数', '偶数'], ['#3182ce', '#e23e3e']);
-            this.drawPieChart('blueBigSmallChart', this.data.blueBigSmallRatio, ['大数', '小数'], ['#3182ce', '#e23e3e']);
+            this.processHeatmapData(responseData.data, gameCode);
           } else {
             console.error('获取号码分布数据失败: 响应数据格式不正确', responseData);
-            this.generateMockHeatmapData(); // 失败时生成模拟数据
+            this.generateMockHeatmapData();
           }
         } catch (error) {
           console.error('解析号码分布数据失败:', error);
-          this.generateMockHeatmapData(); // 解析失败时生成模拟数据
+          this.generateMockHeatmapData();
         }
       },
       fail: (err) => {
         console.error('获取号码分布数据请求失败:', err);
-        this.generateMockHeatmapData(); // 请求失败时生成模拟数据
+        this.generateMockHeatmapData();
       },
       complete: () => {
         wx.hideLoading();
       }
     });
+  },
+  
+  // 处理热力图数据
+  processHeatmapData: function(data, gameCode) {
+    const redDistribution = data.red || [];
+    const blueDistribution = data.blue || [];
+    
+    // 计算最大频率值
+    const maxFreq = Math.max(
+      ...redDistribution.map(item => item.frequency || 0),
+      ...blueDistribution.map(item => item.frequency || 0),
+      1
+    );
+    
+    // 转换数据格式
+    const redHeatmap = redDistribution.map(item => ({
+      number: item.number,
+      frequency: item.frequency
+    }));
+    
+    const blueHeatmap = blueDistribution.map(item => ({
+      number: item.number,
+      frequency: item.frequency
+    }));
+    
+    // 计算统计比例
+    const ratios = this.calculateRatios(redHeatmap, blueHeatmap, gameCode);
+    
+    // 为频率统计图创建排序后的数据副本
+    const redFrequencyData = [...redHeatmap].sort((a, b) => b.frequency - a.frequency);
+    const blueFrequencyData = [...blueHeatmap].sort((a, b) => b.frequency - a.frequency);
+    
+    this.setData({
+      redHeatmap,
+      blueHeatmap,
+      redFrequencyData,
+      blueFrequencyData,
+      maxFrequency: maxFreq,
+      ...ratios
+    });
+    
+    // 数据更新后绘制图表
+    this.drawDistributionCharts();
+  },
+  
+  // 计算奇偶比和大小比
+  calculateRatios: function(redHeatmap, blueHeatmap, gameCode) {
+    const isSSQ = gameCode === 'ssq';
+    const redBigThreshold = isSSQ ? 17 : 18;
+    const blueBigThreshold = isSSQ ? 8 : 6;
+    
+    const calculateStats = (heatmap, bigThreshold) => {
+      let odd = 0, even = 0, big = 0, small = 0;
+      
+      heatmap.forEach(item => {
+        const { number, frequency } = item;
+        
+        // 奇偶统计
+        if (number % 2 === 1) {
+          odd += frequency;
+        } else {
+          even += frequency;
+        }
+        
+        // 大小统计
+        if (number > bigThreshold) {
+          big += frequency;
+        } else {
+          small += frequency;
+        }
+      });
+      
+      return { odd, even, big, small };
+    };
+    
+    const redStats = calculateStats(redHeatmap, redBigThreshold);
+    const blueStats = calculateStats(blueHeatmap, blueBigThreshold);
+    
+    return {
+      redOddEvenRatio: { odd: redStats.odd, even: redStats.even },
+      redBigSmallRatio: { big: redStats.big, small: redStats.small },
+      blueOddEvenRatio: { odd: blueStats.odd, even: blueStats.even },
+      blueBigSmallRatio: { big: blueStats.big, small: blueStats.small }
+    };
   },
   
   // 生成模拟热力图数据（备用）

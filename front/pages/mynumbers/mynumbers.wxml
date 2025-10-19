@@ -38,5 +38,75 @@
     <text class="empty-text">当前分类下暂无号码</text>
     <button class="goto-generate-btn" bindtap="gotoGenerate">去生成号码</button>
   </view>
+
+  <!-- 中奖结果弹窗 -->
+  <view class="winning-modal" wx:if="{{showWinningModal}}">
+    <view class="modal-mask" bindtap="closeWinningModal"></view>
+    <view class="modal-content">
+      <view class="modal-header">
+        <text class="modal-title">🎉 近15期中奖核对结果</text>
+        <view class="close-btn" bindtap="closeWinningModal">✕</view>
+      </view>
+      
+      <view class="modal-body">
+        <!-- 未中奖 -->
+        <view class="no-winning" wx:if="{{winningData.totalMatches === 0}}">
+          <view class="no-winning-icon">😔</view>
+          <text class="no-winning-text">很遗憾，该组号码最近15期没有中奖</text>
+          <text class="no-winning-tip">继续加油哦！</text>
+        </view>
+        
+        <!-- 有中奖 -->
+        <view class="has-winning" wx:else>
+          <view class="summary-card">
+            <view class="summary-item">
+              <text class="summary-label">中奖次数</text>
+              <text class="summary-value highlight">{{winningData.totalMatches}}次</text>
+            </view>
+            <view class="summary-divider"></view>
+            <view class="summary-item">
+              <text class="summary-label">累计奖金</text>
+              <text class="summary-value prize">{{winningData.totalPrizeText}}</text>
+            </view>
+          </view>
+          
+          <view class="details-title">中奖明细</view>
+          
+          <scroll-view class="details-list" scroll-y="true">
+            <view class="detail-card" wx:for="{{winningData.matches}}" wx:key="index">
+              <view class="detail-header">
+                <view class="period-info">
+                  <text class="period-label">第{{item.period}}期</text>
+                  <text class="date-label">{{item.drawDate}}</text>
+                </view>
+                <view class="win-level {{item.levelClass}}">{{item.winLevel}}</view>
+              </view>
+              
+              <view class="detail-body">
+                <view class="match-info">
+                  <view class="match-item">
+                    <text class="match-label">红球</text>
+                    <text class="match-count red">{{item.redMatches}}个</text>
+                  </view>
+                  <view class="match-item">
+                    <text class="match-label">蓝球</text>
+                    <text class="match-count blue">{{item.blueMatches}}个</text>
+                  </view>
+                </view>
+                <view class="prize-info">
+                  <text class="prize-label">奖金</text>
+                  <text class="prize-amount">{{item.prizeText}}</text>
+                </view>
+              </view>
+            </view>
+          </scroll-view>
+        </view>
+      </view>
+      
+      <view class="modal-footer">
+        <button class="confirm-btn" bindtap="closeWinningModal">确定</button>
+      </view>
+    </view>
+  </view>
 </view>
 

@@ -41,16 +41,7 @@
     "request": 10000,
     "downloadFile": 10000
   },
-  "permission": {
-    "scope.userLocation": {
-      "desc": "你的位置信息将用于小程序位置接口的效果展示"
-    }
-  },
-  "request": {
-    "domain": [
-      "47.121.26.190:8080"
-    ]
-  },
-  "debug": true,
+  "lazyCodeLoading": "requiredComponents",
+  "debug": false,
   "sitemapLocation": "sitemap.json"
 }

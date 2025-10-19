@@ -20,24 +20,23 @@
 
   // 初始化球号数据
   initBallData: function() {
-    const redBalls = [];
-    const blueBalls = [];
+    const gameConfig = {
+      ssq: { redMax: 33, blueMax: 16 },
+      dlt: { redMax: 35, blueMax: 12 }
+    };
     
-    // 根据当前游戏类型初始化球号
-    const redMax = this.data.currentGame === 'ssq' ? 33 : 35;
-    const blueMax = this.data.currentGame === 'ssq' ? 16 : 12;
+    const config = gameConfig[this.data.currentGame];
     
-    for (let i = 1; i <= redMax; i++) {
-      redBalls.push({ number: i, status: 'normal' });
-    }
-    
-    for (let i = 1; i <= blueMax; i++) {
-      blueBalls.push({ number: i, status: 'normal' });
-    }
+    const createBalls = (max) => {
+      return Array.from({ length: max }, (_, i) => ({
+        number: i + 1,
+        status: 'normal'
+      }));
+    };
     
     this.setData({
-      redBalls: redBalls,
-      blueBalls: blueBalls
+      redBalls: createBalls(config.redMax),
+      blueBalls: createBalls(config.blueMax)
     });
   },
   
@@ -68,17 +67,16 @@
 
   // 生成单组号码
   generateSingleNumber: function() {
-    if (this.data.currentGame === 'ssq') {
-      // 双色球：6个红球(1-33) + 1个蓝球(1-16)
-      const redBalls = this.getRandomNumbers(1, 33, 6, 'red');
-      const blueBalls = this.getRandomNumbers(1, 16, 1, 'blue');
-      return { redBalls: redBalls, blueBalls: blueBalls };
-    } else {
-      // 大乐透：5个前区(1-35) + 2个后区(1-12)
-      const redBalls = this.getRandomNumbers(1, 35, 5, 'red');
-      const blueBalls = this.getRandomNumbers(1, 12, 2, 'blue');
-      return { redBalls: redBalls, blueBalls: blueBalls };
-    }
+    const gameConfig = {
+      ssq: { redMax: 33, redCount: 6, blueMax: 16, blueCount: 1 },
+      dlt: { redMax: 35, redCount: 5, blueMax: 12, blueCount: 2 }
+    };
+    
+    const config = gameConfig[this.data.currentGame];
+    const redBalls = this.getRandomNumbers(1, config.redMax, config.redCount, 'red');
+    const blueBalls = this.getRandomNumbers(1, config.blueMax, config.blueCount, 'blue');
+    
+    return { redBalls, blueBalls };
   },
 
   getRandomNumbers: function(min, max, count, type) {
@@ -265,14 +263,38 @@
       return;
     }
     
-    if (!this.data.hasToken) {
-      wx.showToast({
-        title: '请先登录',
-        icon: 'none'
-      });
-      return;
-    }
-    
+    // 使用按需授权：需要登录时自动触发
+    const authUtil = require('../../utils/auth.js');
+    authUtil.requireLogin((loginInfo) => {
+      // 登录成功后执行收藏逻辑
+      this.performCollect(loginInfo);
+    }, {
+      title: '需要登录',
+      content: '收藏号码需要登录，是否立即登录？',
+      showModal: true
+    }).catch((error) => {
+      if (error.code !== 'USER_CANCEL') {
+        wx.showToast({
+          title: error.message || '登录失败',
+          icon: 'none'
+        });
+      }
+    });
+  },
+
+  // 执行收藏操作
+  performCollect: function(loginInfo) {
+    // 更新本地登录状态
+    this.setData({
+      hasToken: true,
+      user: loginInfo.user
+    });
+
+    // 更新全局登录状态
+    const app = getApp();
+    app.globalData.isLoggedIn = true;
+    app.globalData.user = loginInfo.user;
+
     // 循环调用现有的保存接口
     const gameCode = this.data.currentGame === 'ssq' ? 'ssq' : 'dlt';
     let successCount = 0;
@@ -283,7 +305,7 @@
         url: this.getBaseURL() + '/api/numbers/save',
         method: 'POST',
         header: {
-          'X-User-ID': this.data.user.id.toString(),
+          'X-User-ID': loginInfo.user.id.toString(),
           'Content-Type': 'application/json'
         },
         data: {
@@ -337,21 +359,25 @@
 
   // ========== 登录相关 ==========
   initAuthState: function() {
-    try {
-      const token = wx.getStorageSync('token');
-      const user = wx.getStorageSync('user');
-      console.log('初始化登录状态:', { token: !!token, user: !!user });
-      if (token && user) {
-        this.setData({ hasToken: true, user: user });
-        console.log('用户已登录:', user);
-      } else {
-        this.setData({ hasToken: false, user: null });
-        console.log('用户未登录');
-      }
-    } catch (e) {
-      console.error('初始化登录状态失败:', e);
-      this.setData({ hasToken: false, user: null });
-    }
+    // 从全局状态和本地存储读取登录信息
+    const app = getApp();
+    const authUtil = require('../../utils/auth.js');
+    
+    authUtil.checkLoginStatus()
+      .then((loginInfo) => {
+        this.setData({ 
+          hasToken: true, 
+          user: loginInfo.user 
+        });
+        // 用户已登录
+      })
+      .catch(() => {
+        this.setData({ 
+          hasToken: false, 
+          user: null 
+        });
+        // 用户未登录
+      });
   },
 
   handleLoginTap: function() {
@@ -386,7 +412,7 @@
               wx.setStorageSync('user', data.user);
               wx.setStorageSync('tokenExpiresAt', data.expiresAt);
             } catch (e) {
-              console.error('存储登录信息失败:', e);
+              // 存储登录信息失败
             }
 
             this.setData({ 
@@ -394,7 +420,6 @@
               user: data.user, 
               loadingLogin: false 
             });
-            console.log('登录成功，更新状态:', { hasToken: true, user: data.user });
             wx.showToast({ title: '登录成功', icon: 'success' });
           },
           fail: () => doFail('登录请求失败')
@@ -460,7 +485,7 @@
             wx.removeStorageSync('user');
             wx.removeStorageSync('tokenExpiresAt');
           } catch (e) {
-            console.error('清除登录信息失败:', e);
+            // 清除登录信息失败
           }
           
           this.setData({

@@ -37,8 +37,8 @@ type CheckWinningResponse struct {
 }
 
 // CheckWinning 核对中奖情况
-// @Summary 核对用户号码在近14期的中奖情况
-// @Description 对比用户号码和近14期开奖号码，返回中奖的期数、中奖等级等信息
+// @Summary 核对用户号码在近15期的中奖情况
+// @Description 对比用户号码和近15期开奖号码，返回中奖的期数、中奖等级等信息
 // @Tags 号码管理
 // @Accept json
 // @Produce json
@@ -73,8 +73,8 @@ func CheckWinning(c *gin.Context) {
 		return
 	}
 
-	// 获取该游戏的近14期开奖结果
-	drawResults, err := service.GetLatestDrawResults(mysql.DB, userNumber.Game.GameCode, 14)
+	// 获取该游戏的近15期开奖结果
+	drawResults, err := service.GetLatestDrawResults(mysql.DB, userNumber.Game.GameCode, 15)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code":    500,

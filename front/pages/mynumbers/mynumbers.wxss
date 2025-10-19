@@ -287,3 +287,331 @@
   animation: pulse 1.5s infinite;
   font-weight: 500;
 }
+
+/* 中奖结果弹窗样式 */
+.winning-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-mask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  animation: fadeIn 0.3s ease;
+}
+
+.modal-content {
+  position: relative;
+  width: 90%;
+  max-width: 650rpx;
+  max-height: 80vh;
+  background: #fff;
+  border-radius: 30rpx;
+  overflow: hidden;
+  box-shadow: 0 20rpx 60rpx rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 30rpx 40rpx;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+}
+
+.modal-title {
+  font-size: 34rpx;
+  font-weight: bold;
+}
+
+.close-btn {
+  width: 50rpx;
+  height: 50rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40rpx;
+  color: #fff;
+  opacity: 0.8;
+  transition: all 0.3s;
+}
+
+.close-btn:active {
+  opacity: 1;
+  transform: scale(0.9);
+}
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 30rpx 40rpx;
+}
+
+/* 未中奖样式 */
+.no-winning {
+  text-align: center;
+  padding: 60rpx 40rpx;
+}
+
+.no-winning-icon {
+  font-size: 120rpx;
+  margin-bottom: 30rpx;
+}
+
+.no-winning-text {
+  display: block;
+  font-size: 32rpx;
+  color: #666;
+  margin-bottom: 20rpx;
+  line-height: 1.6;
+}
+
+.no-winning-tip {
+  display: block;
+  font-size: 26rpx;
+  color: #999;
+}
+
+/* 有中奖样式 */
+.summary-card {
+  display: flex;
+  background: linear-gradient(135deg, #ffd89b 0%, #19547b 100%);
+  border-radius: 20rpx;
+  padding: 30rpx;
+  margin-bottom: 30rpx;
+  box-shadow: 0 8rpx 20rpx rgba(255, 107, 107, 0.2);
+}
+
+.summary-item {
+  flex: 1;
+  text-align: center;
+}
+
+.summary-label {
+  display: block;
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 10rpx;
+}
+
+.summary-value {
+  display: block;
+  font-size: 42rpx;
+  font-weight: bold;
+  color: #fff;
+}
+
+.summary-value.highlight {
+  color: #fff;
+  text-shadow: 0 2rpx 10rpx rgba(255, 107, 107, 0.5);
+}
+
+.summary-value.prize {
+  color: #fff;
+  text-shadow: 0 2rpx 10rpx rgba(255, 193, 7, 0.5);
+}
+
+.summary-divider {
+  width: 2rpx;
+  background: rgba(255, 255, 255, 0.3);
+  margin: 0 20rpx;
+}
+
+.details-title {
+  font-size: 28rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 20rpx;
+  padding-left: 20rpx;
+  border-left: 6rpx solid #667eea;
+}
+
+.details-list {
+  max-height: 600rpx;
+}
+
+.detail-card {
+  background: #f8f9fa;
+  border-radius: 15rpx;
+  padding: 25rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 4rpx 15rpx rgba(0, 0, 0, 0.08);
+  border-left: 6rpx solid #667eea;
+}
+
+.detail-card:last-child {
+  margin-bottom: 0;
+}
+
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20rpx;
+  padding-bottom: 15rpx;
+  border-bottom: 2rpx dashed #e0e0e0;
+}
+
+.period-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.period-label {
+  font-size: 28rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 5rpx;
+}
+
+.date-label {
+  font-size: 22rpx;
+  color: #999;
+}
+
+.win-level {
+  padding: 8rpx 20rpx;
+  border-radius: 30rpx;
+  font-size: 22rpx;
+  font-weight: bold;
+  color: #fff;
+}
+
+.win-level.level-1 {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.win-level.level-2 {
+  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+}
+
+.win-level.level-3 {
+  background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);
+}
+
+.win-level.level-4 {
+  background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+}
+
+.win-level.level-5 {
+  background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+}
+
+.win-level.level-6 {
+  background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+}
+
+.detail-body {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.match-info {
+  display: flex;
+  gap: 25rpx;
+}
+
+.match-item {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+
+.match-label {
+  font-size: 24rpx;
+  color: #666;
+}
+
+.match-count {
+  font-size: 28rpx;
+  font-weight: bold;
+}
+
+.match-count.red {
+  color: #ff4757;
+}
+
+.match-count.blue {
+  color: #3742fa;
+}
+
+.prize-info {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+  padding: 8rpx 20rpx;
+  border-radius: 30rpx;
+}
+
+.prize-label {
+  font-size: 22rpx;
+  color: #d35400;
+}
+
+.prize-amount {
+  font-size: 26rpx;
+  font-weight: bold;
+  color: #c0392b;
+}
+
+.modal-footer {
+  padding: 20rpx 40rpx 30rpx;
+  background: #fff;
+  border-top: 2rpx solid #f0f0f0;
+}
+
+.confirm-btn {
+  width: 100%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  border: none;
+  border-radius: 50rpx;
+  padding: 25rpx 0;
+  font-size: 30rpx;
+  font-weight: bold;
+  box-shadow: 0 8rpx 20rpx rgba(102, 126, 234, 0.3);
+  transition: all 0.3s;
+}
+
+.confirm-btn:active {
+  transform: translateY(2rpx);
+  box-shadow: 0 4rpx 10rpx rgba(102, 126, 234, 0.2);
+}
+
+/* 动画效果 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100rpx);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
